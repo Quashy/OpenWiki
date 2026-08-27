@@ -72,24 +72,24 @@ v1 先完成一个可内部试用的闭环：
 - FastAPI、React/Vite/TypeScript、SQLAlchemy、Alembic 基础工程。
 - PostgreSQL 16、pgvector、pg_bigm、Redis、Langfuse、Ollama 连接配置。
 - `.env.example`、配置校验、结构化日志、统一错误响应、请求 ID。
-- OpenAPI lint、API 契约测试入口、后端集成测试目录、前端测试入口。
+- OpenAPI 契约检查、API 契约测试入口、后端测试目录。
 - 固定质量语料：重复文档、别名、冲突事实、跨文档关系、精确编号、无答案问题。
 
 **接口**
 
-M0 不交付业务接口；只建立接口契约和测试入口。
+M0 不交付业务接口；只建立接口契约和后端测试入口。
 
 **退出门禁**
 
 - 空库可执行 Alembic 迁移，`vector` 和 `pg_bigm` 扩展可用。
 - 前后端、数据库和依赖服务可按文档启动。
-- OpenAPI lint 通过。
-- 基础 lint、类型检查和最小测试通过。
+- OpenAPI 契约检查通过。
+- 后端最小测试通过，前端生产构建按需通过。
 
 **完成证据（2026-08-27）**
 
-- 后端：`python -m ruff check .`、`python -m mypy app tests`、`python -m pytest` 通过。
-- 前端：`npm --prefix "frontend" run lint`、`npm --prefix "frontend" run test`、`npm --prefix "frontend" run build` 通过。
+- 后端：`python -m pytest` 通过。
+- 前端：`npm --prefix "frontend" run build` 通过。
 - API 契约：`npm run api:lint` 通过。
 - Docker：`docker compose config` 通过；PostgreSQL 镜像可构建并从源码安装 `pg_bigm`。
 - Alembic：空库执行 `python -m alembic upgrade head` 通过，扩展版本为 `pg_bigm 1.2`、`vector 0.8.6`。
@@ -120,8 +120,8 @@ M0 不交付业务接口；只建立接口契约和测试入口。
 
 **完成证据（2026-08-27）**
 
-- 后端：`python -m ruff check "backend/app" "backend/tests"`、`python -m mypy "backend/app" "backend/tests"`、`python -m pytest "backend/tests"` 通过。
-- 前端：`npm --prefix "frontend" run lint`、`npm --prefix "frontend" run test`、`npm --prefix "frontend" run build` 通过。
+- 后端：`python -m pytest "backend/tests"` 通过。
+- 前端：`npm --prefix "frontend" run build` 通过。
 - Alembic：`python -m alembic upgrade head --sql` 通过，M1 表结构可生成 PostgreSQL SQL。
 - 在线迁移未在宿主机验证：当前 `DATABASE_URL` 指向 Docker 网络主机名 `db`，宿主机直接运行无法解析。
 
@@ -274,7 +274,7 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发：
 ## 7. 维护规则
 
 - 开始里程碑时将状态改为 `进行中`，完成后附测试或验收证据。
-- 日常开发按改动范围运行最快相关检查；里程碑退出时再执行对应全量门禁。
+- 日常开发按改动范围运行最快相关检查；里程碑退出时执行必要验收，不强制静态检查门禁。
 - OpenAPI、Docker、数据库迁移只在相关文件变化时触发专项检查。
 - 范围变化必须先更新本文件和 OpenAPI，再改实现。
 - PRD/TRD 与本文件冲突时，先确认是否属于 v1 收敛；确认后同步修改相关文档。

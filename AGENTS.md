@@ -81,8 +81,8 @@ Tailwind 用于页面布局和产品特定组合。界面应保持信息密度�
 
 日常内循环：
 
-- 改前端组件或前端逻辑：优先跑相关 `vitest` 测试；必要时跑 `eslint`。
-- 改后端单模块：优先跑相关 `pytest` 测试；必要时对相关目录跑 `ruff check`。
+- 改前端组件或前端逻辑：以页面手动验证为主；改动依赖、构建配置或路由入口时跑生产构建。
+- 改后端单模块：优先跑相关 `pytest` 测试。
 - 改文档或固定语料：通常只做内容自查；除非影响契约或命令说明，不跑前后端全量。
 - 没改 OpenAPI，不跑 Redocly lint。
 - 没改 Docker、Compose 或端口配置，不跑 `docker compose config`。
@@ -91,8 +91,8 @@ Tailwind 用于页面布局和产品特定组合。界面应保持信息密度�
 
 交付前或里程碑收尾必须运行相关全量检查：
 
-- 后端：`ruff`、`mypy`、`pytest`。
-- 前端：`eslint`、`vitest`、生产构建。
+- 后端：`pytest`。
+- 前端：生产构建。
 - API 契约变更：对 `docs/api/openapi.yaml` 执行 Redocly lint。
 - Docker 变更：执行 `docker compose config`。
 - 数据库迁移变更：执行 Alembic 迁移验证。

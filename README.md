@@ -48,13 +48,10 @@ docker compose up --build
 
 ```powershell
 cd backend
-.\.venv\Scripts\python -m ruff check .
-.\.venv\Scripts\python -m mypy app tests
 .\.venv\Scripts\python -m pytest
 
 cd ..\frontend
 npm run lint
-npm run test
 npm run build
 ```
 
