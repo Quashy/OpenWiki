@@ -1,0 +1,2 @@
+"""Chunk search plugin placeholder."""
+

@@ -1,0 +1,55 @@
+[project]
+name = "openwiki-backend"
+version = "0.1.0"
+description = "OpenWiki V2 FastAPI backend"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.17.0",
+  "arq>=0.26.0",
+  "asyncpg>=0.30.0",
+  "cryptography>=46.0.0",
+  "fastapi>=0.121.0",
+  "httpx>=0.28.0",
+  "langfuse>=3.9.0",
+  "openai>=2.0.0",
+  "passlib[bcrypt]>=1.7.4",
+  "pydantic-settings>=2.10.0",
+  "python-jose[cryptography]>=3.5.0",
+  "python-multipart>=0.0.20",
+  "redis>=5.3.0",
+  "sqlalchemy[asyncio]>=2.0.40",
+  "structlog>=25.0.0",
+  "uvicorn[standard]>=0.38.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.17.0",
+  "types-PyYAML>=6.0.12",
+  "pyyaml>=6.0.2",
+  "pytest>=8.4.0",
+  "pytest-asyncio>=1.1.0",
+  "ruff>=0.12.0"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true

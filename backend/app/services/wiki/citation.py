@@ -1,0 +1,2 @@
+"""Wiki citation stage placeholder."""
+

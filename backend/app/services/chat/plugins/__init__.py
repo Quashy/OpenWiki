@@ -1,0 +1,2 @@
+"""Chat pipeline plugin package."""
+

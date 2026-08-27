@@ -1,0 +1,2 @@
+"""Wiki taxonomy stage placeholder."""
+

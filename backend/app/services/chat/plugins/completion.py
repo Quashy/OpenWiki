@@ -1,0 +1,2 @@
+"""Completion streaming plugin placeholder."""
+

@@ -1,0 +1,2 @@
+"""GraphRAG retrieval placeholder."""
+

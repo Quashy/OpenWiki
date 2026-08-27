@@ -1,0 +1,2 @@
+"""Wiki page service placeholder."""
+

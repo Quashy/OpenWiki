@@ -1,0 +1,16 @@
+{
+  "name": "openwiki-v2",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "api:lint": "redocly lint docs/api/openapi.yaml",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "frontend:test": "npm --prefix frontend run test"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^1.34.0"
+  }
+}
+

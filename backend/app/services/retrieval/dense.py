@@ -1,0 +1,2 @@
+"""Dense pgvector retrieval placeholder."""
+

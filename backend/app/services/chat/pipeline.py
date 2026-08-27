@@ -1,0 +1,2 @@
+"""RAG event pipeline placeholder."""
+

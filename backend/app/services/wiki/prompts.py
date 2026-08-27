@@ -1,0 +1,2 @@
+"""Wiki prompt templates placeholder."""
+
