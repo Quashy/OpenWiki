@@ -48,7 +48,7 @@ v1 先完成一个可内部试用的闭环：
 
 | 里程碑 | 目标 | 状态 | 主要完成证据 |
 |---|---|---|---|
-| M0 | 工程、数据库与接口契约基线 | 未开始 | 本地启动、迁移、OpenAPI lint、基础测试通过 |
+| M0 | 工程、数据库与接口契约基线 | 已完成 | 2026-08-27：迁移、OpenAPI lint、前后端基础检查通过 |
 | M1 | 账号、团队、模型配置、KB 骨架 | 未开始 | 权限矩阵和模型探测测试通过 |
 | M2 | Source KB 文档摄入闭环 | 未开始 | 上传、分块、向量化、检索基线通过 |
 | M3 | Wiki 生成与浏览 | 未开始 | 六阶段 ingest、页面、图谱数据通过 |
@@ -85,6 +85,14 @@ M0 不交付业务接口；只建立接口契约和测试入口。
 - 前后端、数据库和依赖服务可按文档启动。
 - OpenAPI lint 通过。
 - 基础 lint、类型检查和最小测试通过。
+
+**完成证据（2026-08-27）**
+
+- 后端：`python -m ruff check .`、`python -m mypy app tests`、`python -m pytest` 通过。
+- 前端：`npm --prefix "frontend" run lint`、`npm --prefix "frontend" run test`、`npm --prefix "frontend" run build` 通过。
+- API 契约：`npm run api:lint` 通过。
+- Docker：`docker compose config` 通过；PostgreSQL 镜像可构建并从源码安装 `pg_bigm`。
+- Alembic：空库执行 `python -m alembic upgrade head` 通过，扩展版本为 `pg_bigm 1.2`、`vector 0.8.6`。
 
 ### M1：账号、团队、模型配置、KB 骨架
 
@@ -259,6 +267,8 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发：
 ## 7. 维护规则
 
 - 开始里程碑时将状态改为 `进行中`，完成后附测试或验收证据。
+- 日常开发按改动范围运行最快相关检查；里程碑退出时再执行对应全量门禁。
+- OpenAPI、Docker、数据库迁移只在相关文件变化时触发专项检查。
 - 范围变化必须先更新本文件和 OpenAPI，再改实现。
 - PRD/TRD 与本文件冲突时，先确认是否属于 v1 收敛；确认后同步修改相关文档。
 - 不为后续里程碑保留永久空实现；提前实现的接口也必须满足所属里程碑的完成定义。

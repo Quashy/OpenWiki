@@ -35,6 +35,8 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
+如果本机端口已被占用，可在 `.env` 中调整 `POSTGRES_PORT`、`REDIS_PORT`、`LANGFUSE_PORT`、`BACKEND_PORT` 或 `FRONTEND_PORT`。
+
 服务端口：
 
 - Frontend: http://localhost:8080
@@ -47,6 +49,7 @@ docker compose up --build
 ```powershell
 cd backend
 .\.venv\Scripts\python -m ruff check .
+.\.venv\Scripts\python -m mypy app tests
 .\.venv\Scripts\python -m pytest
 
 cd ..\frontend
@@ -55,3 +58,19 @@ npm run test
 npm run build
 ```
 
+数据库迁移：
+
+```powershell
+cd backend
+.\.venv\Scripts\alembic upgrade head
+```
+
+从宿主机连接 Docker 数据库执行迁移时，使用本机端口地址：
+
+```powershell
+cd backend
+$env:DATABASE_URL="postgresql+asyncpg://openwiki:openwiki@localhost:5432/openwiki"
+.\.venv\Scripts\alembic upgrade head
+```
+
+固定质量语料位于 `docs/v1/quality-corpus/`，供 M2-M6 的分块、检索、Wiki ingest 和问答验收复用。

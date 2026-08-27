@@ -1,0 +1,7 @@
+OpenWiki V2 运行笔记
+
+OWV2 的后端服务通过 /api/v1 暴露接口。前端健康状态徽标读取 /api/v1/health，只用于 M0 工程基线验证，不代表 M1 业务接口已经完成。
+
+Langfuse 用于追踪 document_process、wiki_ingest 和 chat_qa。Redis 用于 ARQ 队列。PostgreSQL 16 同时承载业务数据、pgvector 向量检索和 pg_bigm 全文检索。
+
+当用户询问“内部 Wiki 助手用了什么观测工具”时，预期证据是 Langfuse。当用户询问“OWV2 的 embedding 模型维度”时，预期证据是 Ollama bge-m3 的 1024 维。
