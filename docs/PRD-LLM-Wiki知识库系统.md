@@ -3,6 +3,7 @@
 > 版本：v1.1
 > 日期：2026-08-27
 > 状态：草案
+> 配套文档：[TRD-LLM-Wiki知识库系统.md](./TRD-LLM-Wiki知识库系统.md)、[architecture.md](./architecture.md)
 > 变更：v1.1 — 基于 PRD/TRD 交叉审查，对齐技术实现偏差（六阶段流水线、页面格式、GraphRAG 策略、原子性等）
 
 ---
@@ -236,6 +237,8 @@ Markdown 文档按标题层级切分，每个 chunk 保留其在文档中的标�
 - 展示每个 chunk 的 header_path、字符数、内容预览
 - 用于调整 chunk 大小和重叠参数
 
+> 架构视图：文档处理与分块流程见 [architecture.md#6-文档上传与处理架构](./architecture.md#6-文档上传与处理架构)。
+
 ---
 
 ### 4.5 Wiki 知识库
@@ -357,6 +360,8 @@ Wiki 生成采用**结构化六阶段流水线**，而非 ReAct 自由循环。�
 - 阶段 5 归并按 slug 加锁串行执行，防止同一页面并发写入冲突
 - Wiki 生成不使用 ReAct 自由循环模式
 
+> 架构视图：Wiki ingest 六阶段流水线与并发/原子性边界见 [architecture.md#7-wiki-ingest-架构](./architecture.md#7-wiki-ingest-架构)。
+
 #### 4.5.6 Wiki 页面浏览
 
 - **Wiki 浏览器**：左侧目录树（按 category_path 主题分类树组织），右侧 Markdown 渲染
@@ -461,6 +466,8 @@ score(chunk) = Σ 1/(k + rank_i(chunk))    # k = 60
 - 回答采用**流式输出**（SSE），逐字显示
 - 检索过程中前端展示 pipeline 进度（"正在检索知识库..."）
 
+> 架构视图：混合检索、RRF 融合与 RAG SSE 时序见 [architecture.md#8-检索与-rag-问答架构](./architecture.md#8-检索与-rag-问答架构)。
+
 #### 4.6.4 引用溯源
 
 - LLM 回答中的引用以角标标注（如 `[1]`、`[2]`）
@@ -502,6 +509,8 @@ score(chunk) = Σ 1/(k + rank_i(chunk))    # k = 60
 - 管理员和编辑者可访问可观测性面板
 - 每次问答和 Wiki 生成都有唯一 trace ID，可在 Langfuse 中查看完整调用链
 - 支持按 trace 搜索、按 token/成本排序
+
+> 架构视图：trace/span 分层和观测边界见 [architecture.md#11-可观测性架构](./architecture.md#11-可观测性架构)。
 
 ---
 
@@ -556,6 +565,8 @@ score(chunk) = Σ 1/(k + rank_i(chunk))    # k = 60
 - 核心容器：Web 前端、Python 后端、PostgreSQL（含 pgvector）、Redis、Langfuse
 - 支持配置文件管理所有环境变量
 - 支持数据持久化卷挂载
+
+> 架构视图：Docker Compose 服务拓扑见 [architecture.md#12-docker-compose-部署架构](./architecture.md#12-docker-compose-部署架构)。
 
 ### 5.4 可用性
 

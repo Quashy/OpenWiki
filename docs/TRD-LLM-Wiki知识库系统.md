@@ -3,7 +3,7 @@
 > 版本：v1.1
 > 日期：2026-08-27
 > 状态：草案
-> 配套文档：PRD-LLM-Wiki知识库系统.md
+> 配套文档：[PRD-LLM-Wiki知识库系统.md](./PRD-LLM-Wiki知识库系统.md)、[architecture.md](./architecture.md)
 > 变更：v1.1 — 基于 PRD/TRD 交叉审查，对齐产品与技术描述偏差（GraphRAG 策略、原子性、页面格式等）
 
 ---
@@ -86,6 +86,8 @@
 3. **异步优先**：文档解析、Wiki ingest 等长任务全部走 ARQ 异步队列，API 立即返回任务 ID
 4. **可观测优先**：所有 LLM 调用、检索、Agent 步骤均接入 Langfuse，trace ID 贯穿全链路
 5. **模块化**：LLM Provider、Embedding Provider、检索器均为抽象接口，可扩展
+
+> 架构视图：系统上下文、服务边界和 Mermaid 图见 [architecture.md#3-系统上下文与服务边界](./architecture.md#3-系统上下文与服务边界)。
 
 ---
 
@@ -538,6 +540,8 @@ fts_text = " > ".join(chunk.header_path) + " " + chunk.content
 2. chunk_size=512，overlap=80
 3. header_path = `[]`
 
+> 架构视图：文档上传、去重、分块、向量化和自动触发 Wiki ingest 的完整流程见 [architecture.md#6-文档上传与处理架构](./architecture.md#6-文档上传与处理架构)。
+
 ### 5.3 Wiki Ingest 六阶段流水线
 
 Wiki ingest 采用六阶段流水线，完整保留独立的 chunk 引用标注阶段和来源摘要页生成阶段。
@@ -686,6 +690,8 @@ wiki_ingest 任务触发（手动/自动 debounce）
   - 首行必须输出 `SUMMARY: ...`
 - **WikiIndexIntroPrompt / Update**：index 页引言生成/更新
 
+> 架构视图：Wiki ingest 六阶段流水线、Redis 锁、per-slug 事务和 task_pending_ops 关系见 [architecture.md#7-wiki-ingest-架构](./architecture.md#7-wiki-ingest-架构)。
+
 ### 5.4 多路混合检索
 
 #### 5.4.1 检索架构
@@ -778,6 +784,8 @@ def rrf_fuse(self, *result_lists, k: int = 60, wiki_boost: float = 1.2):
 - Wiki 页面 chunk 加权 1.2（预综合内容优先）
 - 同一块在多路中同时出现，分数累加
 
+> 架构视图：Dense、Sparse、GraphRAG、RRF 和 Wiki boost 的整体检索流程见 [architecture.md#8-检索与-rag-问答架构](./architecture.md#8-检索与-rag-问答架构)。
+
 ### 5.5 RAG 问答管线
 
 #### 5.5.1 事件插件链
@@ -866,6 +874,8 @@ data: {
 - 超出 10 轮的历史不进入上下文
 - QUERY_UNDERSTAND 阶段用最近 3 轮做指代改写
 
+> 架构视图：RAG 问答 SSE sequenceDiagram 和事件插件链关系见 [architecture.md#8-检索与-rag-问答架构](./architecture.md#8-检索与-rag-问答架构)。
+
 ### 5.6 知识图谱构建
 
 图谱在 Wiki ingest 阶段 5（Reduce）中随页面写入同步构建：
@@ -882,6 +892,8 @@ data: {
 - 关系抽取依赖归并 LLM 在生成页面内容时同时输出关系列表（JSON 结构，非 Markdown frontmatter）
 - 关系类型为自由文本（属于/包含/相关/合作/竞争/使用/位于...）
 - 图谱可视化：@antv/g6，支持力导向布局、缩放拖拽、点击节点跳转 Wiki 页面、按类型筛选
+
+> 架构视图：Wiki 页面、entities/relations、G6 可视化和 GraphRAG 召回关系见 [architecture.md#9-wiki-页面与知识图谱架构](./architecture.md#9-wiki-页面与知识图谱架构)。
 
 ---
 
@@ -1023,6 +1035,8 @@ data: {
 - 文件名消毒（防止路径穿越）
 - 文件存储在 Docker volume 中，不暴露为静态资源（通过 API 鉴权访问）
 
+> 架构视图：认证、RBAC、workspace 隔离、敏感信息和文件安全边界见 [architecture.md#10-安全与权限架构](./architecture.md#10-安全与权限架构)。
+
 ---
 
 ## 9. 可观测性设计
@@ -1047,6 +1061,8 @@ data: {
 - Python 标准 logging + structlog（JSON 结构化日志）
 - 日志级别通过环境变量配置
 - 关键操作记录到 audit_logs 表（业务审计）
+
+> 架构视图：Langfuse trace/span、结构化日志和 audit_logs 分层见 [architecture.md#11-可观测性架构](./architecture.md#11-可观测性架构)。
 
 ---
 
@@ -1160,5 +1176,6 @@ RRF_K=60
 CHAT_HISTORY_TURNS=10
 ```
 
----
+> 架构视图：Docker Compose 部署拓扑、服务依赖和环境变量分组见 [architecture.md#12-docker-compose-部署架构](./architecture.md#12-docker-compose-部署架构)。
 
+---
