@@ -380,6 +380,111 @@ chunk_type = wiki_page → document_id 为空，source_page_id 非空
 - 模型测试接口必须区分网络失败、鉴权失败、模型不存在、非 embedding 模型和维度不兼容。
 - 全局 LLM 配置沿用 TRD 管理接口，但任意时刻只允许一个活动配置。
 
+### 4.7 里程碑接口落地映射
+
+接口实现顺序由本 ROADMAP 的纵向里程碑决定，`docs/api/openapi.yaml` 作为接口主契约。不得按接口文档顺序机械实现一组薄接口；每个里程碑完成时，对应接口必须接入真实数据、权限、统一错误和自动化测试。
+
+#### M0：工程与契约基线
+
+M0 不绑定具体业务 endpoint，负责建立所有后续接口共同依赖的工程能力：
+
+- OpenAPI lint 与契约测试入口。
+- 统一错误响应、请求 ID、结构化日志和认证中间件骨架。
+- FastAPI 路由组织、Pydantic schema 分层和 API 集成测试目录。
+- 数据库迁移、健康检查和外部依赖可用性检查。
+
+#### M1：账号、单团队、模型配置与知识库骨架
+
+M1 实现身份、唯一 Workspace、成员、模型配置和 KB 基础能力：
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `GET /workspaces/current`
+- `PATCH /workspaces/current`
+- `GET /workspaces/current/members`
+- `POST /workspaces/current/members`
+- `PATCH /workspaces/current/members/{user_id}`
+- `DELETE /workspaces/current/members/{user_id}`
+- `GET /admin/llm-config`
+- `PUT /admin/llm-config`
+- `POST /admin/llm-config/test`
+- `GET /admin/ollama-config`
+- `PUT /admin/ollama-config`
+- `GET /admin/ollama/models`
+- `POST /admin/ollama/models/probe`
+- `GET /kbs`
+- `POST /kbs`
+- `GET /kbs/{kb_id}`
+- `PATCH /kbs/{kb_id}`
+- `DELETE /kbs/{kb_id}`
+- `POST /kbs/{kb_id}/bindings`
+- `DELETE /kbs/{kb_id}/bindings/{source_kb_id}`
+
+#### M2：源文档摄入、标签与任务状态
+
+M2 实现从上传文件到可检索 chunk 的闭环，并接入通用任务查询：
+
+- `POST /kbs/{kb_id}/documents/upload`
+- `GET /kbs/{kb_id}/documents`
+- `GET /documents/{document_id}`
+- `DELETE /documents/{document_id}`
+- `POST /documents/{document_id}/retry`
+- `GET /kbs/{kb_id}/tags`
+- `POST /kbs/{kb_id}/tags`
+- `PATCH /kbs/{kb_id}/tags/{tag_id}`
+- `DELETE /kbs/{kb_id}/tags/{tag_id}`
+- `POST /kbs/{kb_id}/chunk-preview`
+- `GET /tasks/{task_id}`
+
+#### M3：Wiki 生成、浏览与图谱数据
+
+M3 实现 Wiki 六阶段生成、页面浏览、页面详情和图谱事实源：
+
+- `POST /wiki/{kb_id}/ingest`
+- `POST /wiki/{kb_id}/rebuild`
+- `GET /wiki/{kb_id}/pages`
+- `GET /wiki/{kb_id}/graph`
+- `GET /wiki-pages/{page_id}`
+
+#### M4：单 KB RAG 问答主链路
+
+M4 实现单物理 KB 会话、历史和 SSE 流式问答：
+
+- `POST /chat/sessions`
+- `GET /chat/sessions`
+- `GET /chat/sessions/{session_id}/messages`
+- `GET /chat/sessions/{session_id}/stream`
+- `PATCH /chat/sessions/{session_id}`
+- `DELETE /chat/sessions/{session_id}`
+
+#### M5：PRD 补齐项与治理接口
+
+M5 补齐 Wiki 人工维护、版本治理、审计和图谱交互验收：
+
+- `PUT /wiki-pages/{page_id}`
+- `GET /wiki-pages/{page_id}/revisions`
+- `GET /wiki-pages/{page_id}/revisions/{revision_id}`
+- `GET /wiki-pages/{page_id}/diff`
+- `POST /wiki-pages/{page_id}/rollback`
+- `GET /admin/audit-logs`
+- 对 `GET /wiki/{kb_id}/graph` 补齐前端缩放、拖拽、节点跳转和筛选验收。
+
+#### M6：内部试用门禁
+
+M6 不新增接口，负责全量契约、权限、安全、性能、E2E 和 PRD 追踪矩阵验收。
+
+#### 接口完成规则
+
+- 对应 OpenAPI 请求和响应 schema 必须对齐，不能只满足前端当前调用。
+- RBAC 必须由后端强校验，不能只依赖前端隐藏入口。
+- 写接口必须接入真实数据库写入、审计日志和统一错误结构。
+- 依赖外部模型的接口必须使用真实连通性测试或可复现 stub 测试。
+- API 集成测试必须覆盖成功路径、权限拒绝路径和关键业务拒绝路径。
+- 禁止把后续里程碑接口做成永久 mock；若提前实现后续接口，必须同时满足该接口所属里程碑的最低契约和测试要求。
+- `docs/api/openapi.yaml` 是接口 schema 主契约，本节只记录落地顺序，不重复定义请求和响应结构。
+
 ---
 
 ## 5. 测试与质量策略
