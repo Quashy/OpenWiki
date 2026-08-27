@@ -6,9 +6,15 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Input,
   Listbox,
   ListboxItem,
   ListboxSection,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Navbar,
   NavbarBrand,
   NavbarContent,
@@ -19,8 +25,10 @@ import {
   ScrollShadow,
 } from "@heroui/react";
 import { LogOut, ShieldCheck } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { updateCurrentWorkspace } from "../api/m1";
 import { navSections, roleLabel, sectionTitle, type RouteKey } from "../app/navigation";
 import { useAuthStore } from "../stores/authStore";
 import { ChatPage } from "../pages/ChatPage";
@@ -32,7 +40,7 @@ import { SettingsPage } from "../pages/SettingsPage";
 export function AppShell() {
   const [route, setRoute] = useState<RouteKey>("kbs");
   const [menuOpen, setMenuOpen] = useState(false);
-  const { workspace, membership } = useAuthStore();
+  const { membership } = useAuthStore();
   const isAdmin = membership?.role === "admin";
 
   function selectRoute(nextRoute: RouteKey) {
@@ -48,7 +56,7 @@ export function AppShell() {
         <header className="sticky top-0 z-20 hidden h-14 items-center border-b border-divider bg-background/95 px-6 backdrop-blur lg:flex">
           <h2 className="text-sm font-semibold">{sectionTitle(route)}</h2>
           <div className="ml-auto flex items-center gap-3">
-            <Chip variant="flat">{workspace?.name ?? "尚未加入团队"}</Chip>
+            <WorkspaceControl canManage={isAdmin} />
             <UserMenu />
           </div>
         </header>
@@ -62,6 +70,60 @@ export function AppShell() {
         </main>
       </div>
     </div>
+  );
+}
+
+function WorkspaceControl({ canManage }: { canManage: boolean }) {
+  const { workspace, setWorkspace } = useAuthStore();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(workspace?.name ?? "");
+  const updateMutation = useMutation({
+    mutationFn: () => updateCurrentWorkspace({ name }),
+    onSuccess: (updatedWorkspace) => {
+      setWorkspace(updatedWorkspace);
+      setOpen(false);
+    },
+  });
+
+  function openEditor() {
+    setName(workspace?.name ?? "");
+    setOpen(true);
+  }
+
+  if (!canManage || !workspace) {
+    return <Chip variant="flat">{workspace?.name ?? "尚未加入团队"}</Chip>;
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="flat" onPress={openEditor}>
+        {workspace.name}
+      </Button>
+      <Modal isOpen={open} onOpenChange={setOpen} placement="center">
+        <ModalContent>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateMutation.mutate();
+            }}
+          >
+            <ModalHeader>编辑团队</ModalHeader>
+            <ModalBody>
+              <Input label="团队名称" value={name} onValueChange={setName} isRequired maxLength={128} />
+              {updateMutation.isError ? <p className="text-sm text-danger">保存失败，请检查名称后重试。</p> : null}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="light" onPress={() => setOpen(false)}>
+                取消
+              </Button>
+              <Button color="primary" type="submit" isLoading={updateMutation.isPending}>
+                保存
+              </Button>
+            </ModalFooter>
+          </form>
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
 

@@ -7,6 +7,7 @@ type AuthState = {
   workspace: Workspace | null;
   membership: WorkspaceMember | null;
   setAuth: (auth: AuthResponse) => void;
+  setWorkspace: (workspace: Workspace) => void;
   logout: () => void;
 };
 
@@ -41,6 +42,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       workspace: auth.workspace ?? null,
       membership: auth.membership ?? null,
     });
+  },
+  setWorkspace: (workspace) => {
+    localStorage.setItem("openwiki.workspace", JSON.stringify(workspace));
+    set({ workspace });
   },
   logout: () => {
     [

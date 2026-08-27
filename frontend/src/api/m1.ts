@@ -131,6 +131,11 @@ export async function getCurrentWorkspace(): Promise<Workspace> {
   return response.data;
 }
 
+export async function updateCurrentWorkspace(payload: { name: string }): Promise<Workspace> {
+  const response = await apiClient.patch<Workspace>("/workspaces/current", payload);
+  return response.data;
+}
+
 export async function listMembers(): Promise<WorkspaceMember[]> {
   const response = await apiClient.get<{ items: WorkspaceMember[] }>("/workspaces/current/members");
   return response.data.items;
@@ -185,10 +190,27 @@ export async function createKnowledgeBase(payload:
 
 export async function updateKnowledgeBase(
   id: string,
-  payload: Partial<Pick<KnowledgeBase, "name" | "description" | "status">>,
+  payload: Partial<Pick<KnowledgeBase, "name" | "description" | "status" | "chunking_config" | "wiki_config">>,
 ): Promise<KnowledgeBase> {
   const response = await apiClient.patch<KnowledgeBase>(`/kbs/${id}`, payload);
   return response.data;
+}
+
+export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
+  const response = await apiClient.get<KnowledgeBase>(`/kbs/${id}`);
+  return response.data;
+}
+
+export async function deleteKnowledgeBase(id: string): Promise<void> {
+  await apiClient.delete(`/kbs/${id}`);
+}
+
+export async function bindSourceKnowledgeBase(kbId: string, sourceKbId: string): Promise<void> {
+  await apiClient.post(`/kbs/${kbId}/bindings`, { source_kb_id: sourceKbId });
+}
+
+export async function unbindSourceKnowledgeBase(kbId: string, sourceKbId: string): Promise<void> {
+  await apiClient.delete(`/kbs/${kbId}/bindings/${sourceKbId}`);
 }
 
 export async function getLlmConfig(): Promise<LlmConfig> {
