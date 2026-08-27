@@ -18,13 +18,20 @@ app/api/tasks.py
 app/api/wiki.py
 app/api/workspaces.py
 app/models/__init__.py
+app/models/m1.py
 app/prompts/__init__.py
 app/prompts/fallback.py
 app/prompts/qa.py
 app/prompts/rewrite.py
 app/schemas/__init__.py
+app/schemas/m1.py
 app/services/__init__.py
+app/services/audit_service.py
+app/services/auth_service.py
+app/services/kb_service.py
+app/services/model_service.py
 app/services/observability.py
+app/services/workspace_service.py
 app/services/chat/__init__.py
 app/services/chat/memory.py
 app/services/chat/pipeline.py
@@ -72,4 +79,6 @@ openwiki_backend.egg-info/dependency_links.txt
 openwiki_backend.egg-info/requires.txt
 openwiki_backend.egg-info/top_level.txt
 tests/test_health.py
+tests/test_m1_auth_workspace.py
+tests/test_m1_model_kb.py
 tests/test_openapi_contract.py

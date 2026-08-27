@@ -20,6 +20,7 @@ Requires-Dist: sqlalchemy[asyncio]>=2.0.40
 Requires-Dist: structlog>=25.0.0
 Requires-Dist: uvicorn[standard]>=0.38.0
 Provides-Extra: dev
+Requires-Dist: aiosqlite>=0.21.0; extra == "dev"
 Requires-Dist: mypy>=1.17.0; extra == "dev"
 Requires-Dist: types-PyYAML>=6.0.12; extra == "dev"
 Requires-Dist: pyyaml>=6.0.2; extra == "dev"

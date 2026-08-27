@@ -55,7 +55,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://openwiki:openwiki@db:5432/openwiki}
+      DATABASE_URL: postgresql+asyncpg://openwiki:openwiki@db:5432/openwiki
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -76,7 +76,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://openwiki:openwiki@db:5432/openwiki}
+      DATABASE_URL: postgresql+asyncpg://openwiki:openwiki@db:5432/openwiki
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     volumes:
       - ./uploads:/app/uploads

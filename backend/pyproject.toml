@@ -24,12 +24,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "mypy>=1.17.0",
-  "types-PyYAML>=6.0.12",
+  "aiosqlite>=0.21.0",
   "pyyaml>=6.0.2",
   "pytest>=8.4.0",
-  "pytest-asyncio>=1.1.0",
-  "ruff>=0.12.0"
+  "pytest-asyncio>=1.1.0"
 ]
 
 [tool.pytest.ini_options]
@@ -38,18 +36,3 @@ testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
-
-[tool.mypy]
-python_version = "3.12"
-plugins = ["pydantic.mypy"]
-strict = true
-warn_unused_ignores = true
-warn_return_any = true
-disallow_untyped_defs = true

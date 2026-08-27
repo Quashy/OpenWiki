@@ -49,7 +49,7 @@ v1 先完成一个可内部试用的闭环：
 | 里程碑 | 目标 | 状态 | 主要完成证据 |
 |---|---|---|---|
 | M0 | 工程、数据库与接口契约基线 | 已完成 | 2026-08-27：迁移、OpenAPI lint、前后端基础检查通过 |
-| M1 | 账号、团队、模型配置、KB 骨架 | 未开始 | 权限矩阵和模型探测测试通过 |
+| M1 | 账号、团队、模型配置、KB 骨架 | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | Source KB 文档摄入闭环 | 未开始 | 上传、分块、向量化、检索基线通过 |
 | M3 | Wiki 生成与浏览 | 未开始 | 六阶段 ingest、页面、图谱数据通过 |
 | M4 | 单 KB RAG 问答 | 未开始 | SSE、三路检索、引用跳转通过 |
@@ -117,6 +117,13 @@ M0 不交付业务接口；只建立接口契约和测试入口。
 - LLM API Key 加密入库，接口只返回掩码。
 - Ollama 模型发现返回 tag、digest、capability、实测维度和 v1 可用性。
 - KB 创建后 Embedding 身份字段不可被普通更新接口修改。
+
+**完成证据（2026-08-27）**
+
+- 后端：`python -m ruff check "backend/app" "backend/tests"`、`python -m mypy "backend/app" "backend/tests"`、`python -m pytest "backend/tests"` 通过。
+- 前端：`npm --prefix "frontend" run lint`、`npm --prefix "frontend" run test`、`npm --prefix "frontend" run build` 通过。
+- Alembic：`python -m alembic upgrade head --sql` 通过，M1 表结构可生成 PostgreSQL SQL。
+- 在线迁移未在宿主机验证：当前 `DATABASE_URL` 指向 Docker 网络主机名 `db`，宿主机直接运行无法解析。
 
 ### M2：Source KB 文档摄入闭环
 
