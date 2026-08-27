@@ -595,7 +595,7 @@ score(chunk) = Σ 1/(k + rank_i(chunk))    # k = 60
 | LLM | OpenAI、DeepSeek |
 | Embedding | Ollama 本地、OpenAI API |
 | 图谱存储 | PostgreSQL 关系表（不引入 Neo4j） |
-| 图谱可视化 | @antv/g6 |
+| 图谱可视化 | ECharts |
 | 前端 | Web SPA |
 
 ---

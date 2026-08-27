@@ -186,7 +186,7 @@ M0 不交付业务接口；只建立接口契约和测试入口。
 - Wiki Edit：`PUT /wiki-pages/{page_id}`
 - Revisions：`GET /wiki-pages/{page_id}/revisions`、`GET /wiki-pages/{page_id}/revisions/{revision_id}`、`GET /wiki-pages/{page_id}/diff`、`POST /wiki-pages/{page_id}/rollback`
 - Audit：`GET /admin/audit-logs`
-- Graph：补齐 `GET /wiki/{kb_id}/graph` 对前端 G6 视图的交互验收。
+- Graph：补齐 `GET /wiki/{kb_id}/graph` 对前端 ECharts 图谱视图的交互验收。
 
 **退出门禁**
 

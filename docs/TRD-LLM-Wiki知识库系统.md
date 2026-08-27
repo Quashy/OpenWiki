@@ -18,8 +18,8 @@
 |---|---|
 | 后端框架 | FastAPI（Python 3.12+，async） |
 | 前端框架 | React 18 + Vite + TypeScript |
-| UI 组件库 | shadcn/ui + Tailwind CSS |
-| 图谱可视化 | @antv/g6 |
+| UI 组件库 | HeroUI（基于 Tailwind CSS v4 + React Aria） |
+| 图谱可视化 | ECharts |
 | ORM | SQLAlchemy 2.0（async） |
 | 数据库迁移 | Alembic |
 | 关系数据库 | PostgreSQL 16 + pgvector + pg_bigm |
@@ -41,7 +41,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    浏览器（React SPA）                     │
-│  知识库管理 │ Wiki浏览器 │ 知识图谱(G6) │ 问答对话 │ 管理后台  │
+│  知识库管理 │ Wiki浏览器 │ 知识图谱(ECharts) │ 问答对话 │ 管理后台  │
 └──────────────┬──────────────────────────────────────────┘
                │ HTTP / SSE
 ┌──────────────▼──────────────────────────────────────────┐
@@ -181,10 +181,10 @@ openwiki-v2/
 │   ├── src/
 │   │   ├── api/                     # API 调用层
 │   │   ├── components/              # 通用组件
-│   │   │   ├── ui/                  # shadcn/ui 组件
+│   │   │   ├── ui/                  # HeroUI 封装与通用组件
 │   │   │   ├── ChatMessage.tsx
 │   │   │   ├── CitationPopover.tsx
-│   │   │   └── WikiGraph.tsx        # G6 图谱封装
+│   │   │   └── WikiGraph.tsx        # ECharts 图谱封装
 │   │   ├── pages/
 │   │   │   ├── Login.tsx
 │   │   │   ├── Dashboard.tsx
@@ -202,7 +202,7 @@ openwiki-v2/
 │   │   └── main.tsx
 │   ├── package.json
 │   ├── vite.config.ts
-│   ├── tailwind.config.js
+│   ├── tailwind.config.js           # Tailwind CSS v4 / HeroUI 配置入口
 │   └── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
@@ -891,9 +891,9 @@ data: {
 
 - 关系抽取依赖归并 LLM 在生成页面内容时同时输出关系列表（JSON 结构，非 Markdown frontmatter）
 - 关系类型为自由文本（属于/包含/相关/合作/竞争/使用/位于...）
-- 图谱可视化：@antv/g6，支持力导向布局、缩放拖拽、点击节点跳转 Wiki 页面、按类型筛选
+- 图谱可视化：ECharts，支持力导向布局、缩放拖拽、点击节点跳转 Wiki 页面、按类型筛选
 
-> 架构视图：Wiki 页面、entities/relations、G6 可视化和 GraphRAG 召回关系见 [architecture.md#9-wiki-页面与知识图谱架构](./architecture.md#9-wiki-页面与知识图谱架构)。
+> 架构视图：Wiki 页面、entities/relations、ECharts 可视化和 GraphRAG 召回关系见 [architecture.md#9-wiki-页面与知识图谱架构](./architecture.md#9-wiki-页面与知识图谱架构)。
 
 ---
 

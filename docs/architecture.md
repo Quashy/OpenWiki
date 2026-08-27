@@ -42,7 +42,7 @@ LLM Wiki：原始文档 → [ingest] → Wiki（持久化、持续更新）→ [
 
 ```mermaid
 flowchart TB
-    browser["浏览器：React SPA<br/>知识库管理 / Wiki浏览器 / G6图谱 / 问答对话 / 管理后台"]
+    browser["浏览器：React SPA<br/>知识库管理 / Wiki浏览器 / ECharts 图谱 / 问答对话 / 管理后台"]
 
     subgraph backend["FastAPI 后端"]
         api["API 路由<br/>auth / workspaces / kbs / documents / wiki / chat / admin"]
@@ -86,8 +86,8 @@ flowchart TB
 |---|---|
 | 后端框架 | FastAPI（Python 3.12+，async） |
 | 前端框架 | React 18 + Vite + TypeScript |
-| UI 组件库 | shadcn/ui + Tailwind CSS |
-| 图谱可视化 | @antv/g6 |
+| UI 组件库 | HeroUI（基于 Tailwind CSS v4 + React Aria） |
+| 图谱可视化 | ECharts |
 | ORM | SQLAlchemy 2.0（async） |
 | 数据库迁移 | Alembic |
 | 关系数据库 | PostgreSQL 16 + pgvector + pg_bigm |
@@ -509,15 +509,15 @@ flowchart TD
     entity["upsert entities<br/>按 kb_id + slug 唯一"]
     relation["upsert relations<br/>source / target / relation_type"]
     chunks["Wiki 页面重新向量化<br/>写入 chunks<br/>chunk_type=wiki_page"]
-    g6["G6 图谱视图<br/>缩放 / 拖拽 / 筛选 / 点击跳转"]
+    echarts["ECharts 图谱视图<br/>缩放 / 拖拽 / 筛选 / 点击跳转"]
     graphrag["GraphRAG 补充召回<br/>实体别名匹配<br/>1 跳关系扩展"]
 
     reduce --> llm
     llm --> page --> revision
     llm --> entity --> relation
     page --> chunks
-    entity --> g6
-    relation --> g6
+    entity --> echarts
+    relation --> echarts
     entity --> graphrag
     relation --> graphrag
     graphrag --> chunks
@@ -654,4 +654,3 @@ RUN apt-get update && apt-get install -y postgresql-16-pgbigm
 | 不追求 ingest 全局事务 | per-document 任务追踪 + per-slug 事务 | 避免长事务和大量 LLM 调用期间持锁，允许部分成功并支持单文档重试 |
 | 问答使用 SSE | token/progress/done 事件流式返回 | 满足首字延迟和用户感知进度要求 |
 | Docker Compose 作为默认部署 | 前端、后端、worker、db、redis、langfuse 组合部署 | 满足企业内部自托管与一键部署诉求 |
-
