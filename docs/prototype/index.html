@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>LLM Wiki 知识库系统 — 产品原型</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FAFAF9;--surface:#FFF;--sidebar-bg:#18181B;--sidebar-hover:#27272A;--sidebar-active:#0F766E;
+  --border:#E7E5E4;--border-strong:#D6D3D1;--text:#1C1917;--text-secondary:#78716C;--text-tertiary:#A8A29E;
+  --accent:#0F766E;--accent-hover:#0D9488;--accent-light:#F0FDFA;--accent-border:#99F6E4;
+  --danger:#DC2626;--warning:#D97706;--success:#059669;--info:#2563EB;
+  --radius:8px;--radius-sm:6px;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.08),0 2px 4px -2px rgba(0,0,0,.04);--shadow-lg:0 10px 30px rgba(0,0,0,.15);
+  --font-sans:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-serif:'Noto Serif SC',Georgia,'Times New Roman',serif;
+}
+html{font-size:14px}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.6;min-width:1280px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none;cursor:pointer}
+a:hover{color:var(--accent-hover)}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,textarea,select{font-family:inherit;font-size:inherit}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--text-tertiary)}
+
+/* Login */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#18181B 0%,#27272A 50%,#134E4A 100%)}
+.login-card{background:var(--surface);border-radius:12px;padding:40px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.login-logo svg{width:32px;height:32px}.login-logo span{font-size:20px;font-weight:700}
+.login-sub{color:var(--text-secondary);font-size:13px;margin-bottom:28px}
+.login-tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.login-tab{padding:10px 20px;font-size:14px;font-weight:500;color:var(--text-secondary);border-bottom:2px solid transparent;cursor:pointer}
+.login-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;transition:border-color .15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,118,110,.1)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-hover);color:#fff}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border-strong)}.btn-secondary:hover{background:var(--bg);border-color:var(--text-tertiary)}
+.btn-ghost{color:var(--text-secondary);padding:6px 10px}.btn-ghost:hover{background:var(--bg);color:var(--text)}
+.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#B91C1C;color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}.btn-block{width:100%}.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* App Layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--sidebar-bg);color:#A1A1AA;display:flex;flex-direction:column;flex-shrink:0;position:fixed;top:0;bottom:0;left:0;z-index:100}
+.sidebar-logo{padding:18px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #27272A}
+.sidebar-logo svg{width:24px;height:24px}.sidebar-logo span{font-size:15px;font-weight:700;color:#FAFAFA}
+.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto}
+.nav-section{font-size:11px;color:#52525B;text-transform:uppercase;letter-spacing:.05em;padding:12px 10px 6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);font-size:13px;color:#A1A1AA;cursor:pointer;margin-bottom:2px;transition:all .12s}
+.nav-item:hover{background:var(--sidebar-hover);color:#FAFAFA}
+.nav-item.active{background:var(--sidebar-active);color:#fff;font-weight:500}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.nav-item .badge{margin-left:auto;background:#3F3F46;color:#A1A1AA;font-size:11px;padding:1px 7px;border-radius:10px}
+.nav-item.active .badge{background:rgba(255,255,255,.2);color:#fff}
+.sidebar-footer{padding:12px 16px;border-top:1px solid #27272A;font-size:12px;color:#52525B}
+.role-switch{display:flex;gap:4px;margin-top:8px}
+.role-dot{width:8px;height:8px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.role-dot.active{border-color:#fff;transform:scale(1.2)}
+.main{flex:1;margin-left:220px;display:flex;flex-direction:column;min-width:0}
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:15px;font-weight:600}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.ws-switcher{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;cursor:pointer}
+.ws-switcher:hover{border-color:var(--text-tertiary)}
+.ws-switcher svg{width:14px;height:14px;color:var(--text-secondary)}
+.role-badge{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-light);color:var(--accent);font-weight:500}
+.user-avatar{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer}
+.content{flex:1;padding:24px}
+
+/* Common */
+.page-header{display:flex;align-items:center;margin-bottom:20px}
+.page-header h2{font-size:18px;font-weight:700}
+.page-header .desc{font-size:13px;color:var(--text-secondary);margin-top:2px}
+.page-header .actions{margin-left:auto;display:flex;gap:8px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.card-pad{padding:20px}
+.card-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-weight:600;font-size:14px}
+.card-header .actions{margin-left:auto;display:flex;gap:6px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}
+.badge-success{background:#ECFDF5;color:#065F46}.badge-warning{background:#FFFBEB;color:#92400E}
+.badge-danger{background:#FEF2F2;color:#991B1B}.badge-info{background:#EFF6FF;color:#1E40AF}
+.badge-neutral{background:#F5F5F4;color:#57534E}.badge-accent{background:var(--accent-light);color:var(--accent)}
+.badge-dot::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;font-weight:600;color:var(--text-secondary);padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg)}
+td{padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:#FAFAF9}
+.tag{display:inline-block;padding:1px 8px;border-radius:4px;font-size:11px;background:#F5F5F4;color:#57534E;margin-right:4px;border:1px solid var(--border)}
+
+/* Dashboard */
+.kb-card{cursor:pointer;transition:all .18s}
+.kb-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.kb-card-icon{width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.kb-card-icon svg{width:20px;height:20px}
+.kb-card-title{font-size:14px;font-weight:600;margin-bottom:4px}
+.kb-card-desc{font-size:12px;color:var(--text-secondary);margin-bottom:14px;min-height:32px}
+.kb-card-meta{display:flex;gap:14px;font-size:12px;color:var(--text-tertiary);flex-wrap:wrap}
+.kb-card-meta span{display:flex;align-items:center;gap:4px}
+.kb-section-title{font-size:13px;font-weight:600;color:var(--text-secondary);margin:24px 0 12px;display:flex;align-items:center;gap:8px}
+.kb-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.kb-status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.kb-status-dot.active{background:var(--success)}.kb-status-dot.building{background:var(--warning);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes fadeIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* Document */
+.doc-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.doc-tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--text-secondary);border-bottom:2px solid transparent;cursor:pointer;transition:all .15s}
+.doc-tab:hover{color:var(--text)}.doc-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.chunk-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px}
+.chunk-item:hover{border-color:var(--border-strong)}
+.chunk-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.chunk-seq{font-size:11px;font-weight:600;color:var(--text-tertiary)}
+.chunk-breadcrumb{display:flex;align-items:center;gap:4px;font-size:12px;flex-wrap:wrap}
+.chunk-breadcrumb .crumb{color:var(--accent)}.chunk-breadcrumb .sep{color:var(--text-tertiary)}
+.chunk-content{font-size:13px;line-height:1.7}.chunk-meta{font-size:11px;color:var(--text-tertiary);margin-top:8px}
+.markdown-preview{font-family:var(--font-serif);font-size:14px;line-height:1.8}
+.markdown-preview h1{font-size:22px;font-weight:700;margin:24px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.markdown-preview h2{font-size:18px;font-weight:700;margin:20px 0 10px}.markdown-preview h3{font-size:15px;font-weight:600;margin:16px 0 8px}
+.markdown-preview p{margin-bottom:12px}.markdown-preview ul,.markdown-preview ol{margin:8px 0 12px 20px}.markdown-preview li{margin-bottom:4px}
+.markdown-preview code{background:#F5F5F4;padding:2px 6px;border-radius:3px;font-size:13px;font-family:'SF Mono',Consolas,monospace}
+
+/* Wiki Browser */
+.wiki-layout{display:flex;gap:0;height:calc(100vh - 52px - 48px);margin:-24px}
+.wiki-sidebar{width:280px;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+.wiki-sidebar-header{padding:14px 16px;border-bottom:1px solid var(--border)}
+.wiki-sidebar-header h3{font-size:14px;font-weight:600;margin-bottom:6px}
+.wiki-binding{font-size:11px;color:var(--text-tertiary);margin-bottom:10px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.wiki-binding .bind-kb{color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:3px}
+.wiki-search{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg)}
+.wiki-search:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.wiki-tree{padding:8px;flex:1;overflow-y:auto}
+.tree-category{margin-bottom:4px}
+.tree-category-label{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;user-select:none}
+.tree-category-label svg{width:12px;height:12px;transition:transform .15s}
+.tree-category.collapsed .tree-category-label svg{transform:rotate(-90deg)}
+.tree-category.collapsed .tree-pages{display:none}
+.tree-page{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 24px;font-size:13px;color:var(--text-secondary);border-radius:4px;cursor:pointer;transition:all .1s}
+.tree-page:hover{background:var(--bg);color:var(--text)}.tree-page.active{background:var(--accent-light);color:var(--accent);font-weight:500}
+.tree-page .page-type{font-size:10px;padding:0 5px;border-radius:3px;background:#F5F5F4;color:var(--text-tertiary);margin-left:auto}
+.tree-page.active .page-type{background:var(--accent-border);color:var(--accent)}
+.wiki-sidebar-footer{padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:6px}
+.wiki-content{flex:1;overflow-y:auto;padding:32px 48px;background:var(--bg)}
+.wiki-content-inner{max-width:780px;margin:0 auto}
+.wiki-page-header{margin-bottom:24px}
+.wiki-page-title{font-family:var(--font-serif);font-size:26px;font-weight:700;margin-bottom:8px}
+.wiki-page-meta{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-tertiary);flex-wrap:wrap}
+.wiki-page-meta .sources{display:flex;align-items:center;gap:4px}
+.wiki-page-body{font-family:var(--font-serif);font-size:15px;line-height:1.85}
+.wiki-page-body h2{font-size:19px;font-weight:700;margin:28px 0 12px}.wiki-page-body h3{font-size:16px;font-weight:600;margin:20px 0 8px}
+.wiki-page-body p{margin-bottom:14px}.wiki-page-body ul,.wiki-page-body ol{margin:8px 0 14px 22px}.wiki-page-body li{margin-bottom:6px}
+.wiki-page-body strong{font-weight:600}
+.wiki-link{color:var(--accent);border-bottom:1px dashed var(--accent-border);cursor:pointer;transition:all .15s}
+.wiki-link:hover{color:var(--accent-hover);border-bottom-style:solid}
+.wiki-page-footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-tertiary)}
+.source-ref{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#F5F5F4;border-radius:4px;font-size:11px;color:var(--text-secondary);margin-right:6px;cursor:pointer}
+.source-ref:hover{background:var(--accent-light);color:var(--accent)}
+.wiki-editor textarea{width:100%;min-height:400px;padding:16px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:var(--font-serif);font-size:14px;line-height:1.8;resize:vertical}
+.wiki-editor textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,118,110,.1)}
+.editor-toolbar{display:flex;gap:8px;margin-bottom:12px}
+
+/* Version History */
+.version-list{max-height:300px;overflow-y:auto;margin-bottom:16px}
+.version-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;transition:all .12s}
+.version-item:hover{border-color:var(--border-strong);background:var(--bg)}
+.version-item.selected{border-color:var(--accent);background:var(--accent-light)}
+.version-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.version-item.manual .version-dot{background:var(--warning)}
+.version-info{flex:1;font-size:13px}
+.version-info .v-title{font-weight:500}
+.version-info .v-meta{font-size:11px;color:var(--text-tertiary)}
+.diff-view{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.7;max-height:300px;overflow-y:auto}
+.diff-line{padding:2px 12px;white-space:pre-wrap;word-break:break-all}
+.diff-add{background:#ECFDF5;color:#065F46}.diff-del{background:#FEF2F2;color:#991B1B}
+.diff-hunk{background:#F5F5F4;color:var(--text-secondary);font-weight:600}
+
+/* Graph */
+.graph-container{height:calc(100vh - 52px - 48px);margin:-24px;position:relative}
+.graph-toolbar{position:absolute;top:16px;left:16px;z-index:10;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow)}
+.graph-toolbar h4{font-size:13px;font-weight:600;margin-bottom:8px}
+.graph-legend{display:flex;flex-direction:column;gap:6px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);cursor:pointer;opacity:.5;transition:opacity .15s}
+.legend-item.active{opacity:1}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.graph-stats{position:absolute;top:16px;right:16px;z-index:10;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow);font-size:12px}
+.graph-stats div{margin-bottom:4px;color:var(--text-secondary)}.graph-stats strong{color:var(--text)}
+
+/* Chat */
+.chat-layout{display:flex;height:calc(100vh - 52px - 48px);margin:-24px}
+.chat-sessions{width:260px;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;flex-shrink:0}
+.chat-sessions-header{padding:14px 16px;border-bottom:1px solid var(--border)}
+.chat-sessions-header h3{font-size:14px;font-weight:600;margin-bottom:10px}
+.session-list{flex:1;overflow-y:auto;padding:6px}
+.session-item{padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;margin-bottom:2px;position:relative;transition:background .12s}
+.session-item:hover{background:var(--bg)}.session-item.active{background:var(--accent-light)}
+.session-item.active .session-title{color:var(--accent)}
+.session-title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:40px}
+.session-preview{font-size:11px;color:var(--text-tertiary);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-time{font-size:10px;color:var(--text-tertiary);margin-top:4px}
+.session-actions{position:absolute;top:8px;right:8px;display:none;gap:2px}
+.session-item:hover .session-actions{display:flex}
+.session-actions button{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary)}
+.session-actions button:hover{background:var(--border);color:var(--text)}
+.chat-main{flex:1;display:flex;flex-direction:column;background:var(--bg);min-width:0}
+.chat-messages{flex:1;overflow-y:auto;padding:24px 32px}
+.chat-message{margin-bottom:24px;max-width:800px}
+.chat-message.user{display:flex;justify-content:flex-end}
+.chat-bubble{padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.7}
+.chat-message.user .chat-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-message.assistant .chat-bubble{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-citations{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px}
+.citation-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:11px;color:var(--text-secondary);cursor:pointer;transition:all .15s;position:relative}
+.citation-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.citation-chip .num{width:16px;height:16px;border-radius:3px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600}
+.citation-popover{position:absolute;bottom:calc(100% + 8px);left:0;width:320px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:14px;z-index:200;font-size:12px;line-height:1.6;text-align:left;color:var(--text)}
+.citation-popover .pop-title{font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.citation-popover .pop-snippet{color:var(--text-secondary);background:var(--bg);padding:8px;border-radius:4px;margin-bottom:8px;font-size:11px;max-height:120px;overflow-y:auto}
+.citation-popover .pop-link{color:var(--accent);font-size:11px;cursor:pointer}
+.chat-trace{font-size:11px;color:var(--text-tertiary);margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.chat-trace svg{width:12px;height:12px}
+.chat-input-bar{padding:16px 32px 20px;border-top:1px solid var(--border);background:var(--surface)}
+.chat-input-wrap{max-width:800px;margin:0 auto;display:flex;gap:10px;align-items:flex-end}
+.chat-input{flex:1;padding:11px 14px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;resize:none;min-height:44px;max-height:140px;line-height:1.5;transition:border-color .15s}
+.chat-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,118,110,.08)}
+.chat-send{width:44px;height:44px;border-radius:var(--radius);background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-send:hover{background:var(--accent-hover)}
+.chat-send svg{width:18px;height:18px}
+.chat-hint{font-size:11px;color:var(--text-tertiary);text-align:center;margin-top:8px}
+.recommended-questions{max-width:800px;margin:0 auto 20px;display:flex;flex-wrap:wrap;gap:8px}
+.recommended-questions .rq-label{font-size:12px;color:var(--text-tertiary);width:100%;margin-bottom:4px}
+.rq-chip{padding:6px 14px;border:1px solid var(--border-strong);border-radius:20px;font-size:12px;color:var(--text-secondary);cursor:pointer;background:var(--surface);transition:all .15s}
+.rq-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.chat-empty{text-align:center;padding:60px 20px;color:var(--text-tertiary)}
+.chat-empty svg{width:48px;height:48px;margin-bottom:12px;opacity:.4}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--surface);border-radius:12px;padding:28px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.modal.modal-lg{width:720px}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:6px}
+.modal .modal-desc{font-size:13px;color:var(--text-secondary);margin-bottom:20px}
+.modal-footer{margin-top:20px;display:flex;gap:8px;justify-content:flex-end}
+.modal-close{position:absolute;top:16px;right:16px;width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary)}
+.modal-close:hover{background:var(--bg);color:var(--text)}
+.modal .modal-overlay-inner{position:relative}
+
+/* Toggle */
+.toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border-strong);border-radius:20px;transition:.2s}
+.toggle-slider::before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle input:checked+.toggle-slider{background:var(--accent)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(16px)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-row .toggle-label{font-size:13px;font-weight:500}
+.toggle-row .toggle-hint{font-size:11px;color:var(--text-tertiary)}
+
+/* Ingest stages */
+.stage-list{display:flex;flex-direction:column;gap:0}
+.stage-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.stage-item:last-child{border-bottom:none}
+.stage-icon{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-strong);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:var(--text-tertiary);transition:all .3s}
+.stage-item.running .stage-icon{border-color:var(--accent);color:var(--accent)}
+.stage-item.done .stage-icon{background:var(--success);border-color:var(--success);color:#fff}
+.stage-info{flex:1}.stage-name{font-size:13px;font-weight:500}.stage-detail{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.stage-item.running .stage-name{color:var(--accent)}.stage-item.done .stage-name{color:var(--success)}
+.stage-spinner{width:14px;height:14px;border:2px solid var(--accent-border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--border-strong);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;transition:all .15s}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone svg{width:36px;height:36px;color:var(--text-tertiary);margin-bottom:8px}
+.upload-zone p{font-size:13px;color:var(--text-secondary)}
+.upload-zone .hint{font-size:11px;color:var(--text-tertiary);margin-top:4px}
+.upload-file{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:8px}
+.upload-file .file-name{flex:1;font-size:13px;font-weight:500}
+.upload-progress{height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden}
+.upload-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s}
+
+/* Chunk preview */
+.chunk-preview-result{margin-top:16px;max-height:400px;overflow-y:auto}
+.preview-chunk{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px}
+.preview-chunk .pc-header{font-size:11px;color:var(--accent);margin-bottom:4px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.preview-chunk .pc-content{font-size:12px;line-height:1.6;color:var(--text)}
+.preview-chunk .pc-meta{font-size:10px;color:var(--text-tertiary);margin-top:4px}
+
+/* Checkbox list */
+.check-list{max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px}
+.check-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:13px}
+.check-item:hover{background:var(--bg)}
+.check-item input{width:15px;height:15px;accent-color:var(--accent)}
+
+/* Permission hint */
+.perm-hint{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--radius-sm);font-size:12px;color:#92400E;margin-bottom:16px}
+.perm-hint svg{width:14px;height:14px;flex-shrink:0}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-tertiary)}
+.empty-state svg{width:48px;height:48px;margin-bottom:12px;opacity:.4}
+.empty-state p{font-size:13px}
+.text-sm{font-size:13px}.text-secondary{color:var(--text-secondary)}.mt-4{margin-top:16px}.mb-4{margin-bottom:16px}
+.flex{display:flex}.items-center{align-items:center}.gap-2{gap:8px}.gap-3{gap:12px}
+.kb-select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;background:var(--surface);color:var(--text-secondary);cursor:pointer}
+.kb-select:focus{outline:none;border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ===== Login / Register ===== -->
+<div id="view-login" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span>LLM Wiki</span>
+    </div>
+    <p class="login-sub">企业内部知识库系统</p>
+    <div class="login-tabs">
+      <div class="login-tab active" onclick="switchAuthTab('login')">登录</div>
+      <div class="login-tab" onclick="switchAuthTab('register')">注册</div>
+    </div>
+    <div id="auth-login">
+      <div class="form-group"><label>用户名</label><input type="text" value="zhangsan"></div>
+      <div class="form-group"><label>密码</label><input type="password" value="demo1234"></div>
+      <button class="btn btn-primary btn-block" onclick="login()">登 录</button>
+    </div>
+    <div id="auth-register" style="display:none">
+      <div class="form-group"><label>用户名</label><input type="text" placeholder="设置用户名"></div>
+      <div class="form-group"><label>密码</label><input type="password" placeholder="设置密码（至少 8 位）"></div>
+      <div class="form-group"><label>确认密码</label><input type="password" placeholder="再次输入密码"></div>
+      <div class="form-group"><label>团队名称</label><input type="text" placeholder="如：产品研发部"></div>
+      <button class="btn btn-primary btn-block" onclick="login()">注册并创建团队</button>
+    </div>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-tertiary)">原型演示 · 任意账号密码均可登录</p>
+  </div>
+</div>
+
+<!-- ===== App Shell ===== -->
+<div id="view-app" class="app" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span>LLM Wiki</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">知识管理</div>
+      <div class="nav-item active" data-route="dashboard" onclick="navigate('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>知识库</div>
+      <div class="nav-item" data-route="wiki" onclick="navigate('wiki')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Wiki 浏览器</div>
+      <div class="nav-item" data-route="graph" onclick="navigate('graph')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M12 11l-5 6M12 11l5 6"/></svg>知识图谱</div>
+      <div class="nav-section">智能问答</div>
+      <div class="nav-item" data-route="chat" onclick="navigate('chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>问答对话<span class="badge">3</span></div>
+      <div class="nav-section">系统</div>
+      <div class="nav-item" data-route="members" onclick="navigate('members')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队成员</div>
+      <div class="nav-item" data-route="settings" onclick="navigate('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>模型设置</div>
+      <div class="nav-item" data-route="audit" onclick="navigate('audit')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>审计日志</div>
+    </nav>
+    <div class="sidebar-footer">
+      v0.1.0 · 原型演示
+      <div class="role-switch" title="原型专用：切换角色查看权限差异">
+        <span style="font-size:10px;color:#71717A;margin-right:4px">角色:</span>
+        <div class="role-dot active" style="background:#0F766E" data-role="admin" onclick="switchRole('admin')" title="管理员"></div>
+        <div class="role-dot" style="background:#2563EB" data-role="editor" onclick="switchRole('editor')" title="编辑者"></div>
+        <div class="role-dot" style="background:#78716C" data-role="viewer" onclick="switchRole('viewer')" title="查看者"></div>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div id="topbar-title" class="topbar-title">知识库</div>
+      <div class="topbar-right">
+        <span class="role-badge" id="role-badge">管理员</span>
+        <div class="ws-switcher">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>
+          产品研发部
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="user-avatar">张</div>
+      </div>
+    </header>
+    <div class="content" id="page-content"></div>
+  </div>
+</div>
+
+<!-- ===== Generic Modal Container ===== -->
+<div id="modal-container"></div>
+
+<script>
+// ==================== State & Permissions ====================
+let currentRoute='dashboard', currentWikiSlug='entity/ad-platform', currentDocId=null, currentKBId=null;
+let docTab='preview', graphChart=null, currentRole='admin', wikiEditMode=false;
+let selectedVersionFrom=null, selectedVersionTo=null;
+
+const ROLE_LABELS={admin:'管理员',editor:'编辑者',viewer:'查看者'};
+const ROLE_COLORS={admin:'#0F766E',editor:'#2563EB',viewer:'#78716C'};
+function can(perm){
+  const perms={
+    admin:['kb.create','kb.delete','kb.settings','doc.upload','doc.delete','wiki.ingest','wiki.edit','wiki.rollback','member.manage','audit.view','model.config'],
+    editor:['doc.upload','doc.delete','wiki.ingest','wiki.edit','wiki.rollback'],
+    viewer:[]
+  };
+  return (perms[currentRole]||[]).includes(perm);
+}
+function switchRole(r){
+  currentRole=r;
+  document.querySelectorAll('.role-dot').forEach(d=>d.classList.toggle('active',d.dataset.role===r));
+  document.getElementById('role-badge').textContent=ROLE_LABELS[r];
+  render();
+}
+
+// ==================== Mock Data ====================
+const MOCK={
+  sourceKBs:[
+    {id:'kb1',name:'产品文档库',desc:'产品需求、PRD、用户手册等产品相关文档',docCount:12,updatedAt:'2026-08-26 14:30',status:'active',embedding:'ollama:bge-m3',chunkSize:512,chunkOverlap:80},
+    {id:'kb2',name:'技术架构文档',desc:'系统架构设计、技术方案、API 文档',docCount:8,updatedAt:'2026-08-25 10:15',status:'active',embedding:'ollama:bge-m3',chunkSize:512,chunkOverlap:80},
+  ],
+  wikiKBs:[
+    {id:'wiki1',name:'团队知识 Wiki',desc:'由产品文档库 + 技术架构文档自动蒸馏的结构化知识库',pageCount:24,boundKBs:['kb1','kb2'],updatedAt:'2026-08-26 15:00',status:'active',llm:'deepseek-chat',temperature:0.7,autoIngest:false},
+  ],
+  documents:{
+    kb1:[
+      {id:'d1',name:'广告投放平台PRD.md',type:'md',tags:['PRD','广告'],chunks:8,size:'42 KB',uploadedBy:'张三',status:'completed',createdAt:'2026-08-26 14:20'},
+      {id:'d2',name:'用户增长策略.md',type:'md',tags:['增长','策略'],chunks:5,size:'28 KB',uploadedBy:'李四',status:'completed',createdAt:'2026-08-25 09:30'},
+      {id:'d3',name:'计费系统说明.txt',type:'txt',tags:['计费'],chunks:6,size:'35 KB',uploadedBy:'王五',status:'completed',createdAt:'2026-08-24 16:45'},
+      {id:'d4',name:'会员体系设计.md',type:'md',tags:['会员','设计'],chunks:4,size:'18 KB',uploadedBy:'张三',status:'processing',createdAt:'2026-08-27 10:00'},
+      {id:'d5',name:'数据字典.md',type:'md',tags:['数据'],chunks:0,size:'12 KB',uploadedBy:'李四',status:'failed',error:'Embedding 服务连接超时',createdAt:'2026-08-27 09:30'},
+    ],
+    kb2:[
+      {id:'d6',name:'微服务架构设计.md',type:'md',tags:['架构','微服务'],chunks:10,size:'56 KB',uploadedBy:'王五',status:'completed',createdAt:'2026-08-25 10:00'},
+      {id:'d7',name:'API网关技术方案.md',type:'md',tags:['网关','API'],chunks:7,size:'38 KB',uploadedBy:'赵六',status:'completed',createdAt:'2026-08-24 11:20'},
+      {id:'d8',name:'数据库选型.txt',type:'txt',tags:['数据库'],chunks:3,size:'15 KB',uploadedBy:'王五',status:'completed',createdAt:'2026-08-23 15:00'},
+    ]
+  },
+  chunks:{
+    d1:[
+      {seq:1,breadcrumb:['广告投放平台PRD','产品概述'],content:'广告投放平台是面向中小企业的一站式营销工具，支持搜索广告、展示广告和信息流广告三种投放方式。平台核心目标是降低广告主的投放门槛，提升广告 ROI。',start:0,end:156},
+      {seq:2,breadcrumb:['广告投放平台PRD','产品概述','目标用户'],content:'目标用户为中小企业市场人员，日均广告预算 500-50000 元，缺乏专业投放团队，需要平台提供智能化的投放建议和自动化优化能力。',start:156,end:312},
+      {seq:3,breadcrumb:['广告投放平台PRD','计费方式','关键词快车'],content:'关键词快车采用 CPC（按点击付费）计费模式。广告主设置关键词出价，系统根据出价和质量度决定广告排名。质量度由点击率、相关性和落地页体验三个因素决定。最低出价 0.3 元，最高出价不设上限。',start:580,end:780},
+      {seq:4,breadcrumb:['广告投放平台PRD','计费方式','品牌广告'],content:'品牌广告采用 CPT（按时长付费）计费模式，按天或按周购买。支持开屏广告、首页 Banner 和搜索彩蛋三种形式。品牌广告不参与竞价，先到先得。',start:780,end:920},
+      {seq:5,breadcrumb:['广告投放平台PRD','核心功能','智能出价'],content:'智能出价功能基于机器学习模型，根据广告主的转化目标自动调整出价。支持 oCPC（目标转化出价）和 eCPC（智能点击出价）两种模式。广告主只需设定目标转化成本，系统自动在不同流量上差异化出价。',start:1200,end:1420},
+      {seq:6,breadcrumb:['广告投放平台PRD','核心功能','人群定向'],content:'人群定向支持基础属性（年龄、性别、地域）、兴趣标签、行为定向（搜索过相关关键词、浏览过相关页面）和自定义人群包（DMP）。定向条件可自由组合，预估覆盖人数实时展示。',start:1420,end:1620},
+      {seq:7,breadcrumb:['广告投放平台PRD','数据报表'],content:'数据报表提供实时和离线两种数据。实时数据展示曝光、点击、消费，延迟约 5 分钟。离线数据每天凌晨生成，包含转化数据和多维度归因分析。支持自定义列和定时报告推送。',start:1800,end:1980},
+      {seq:8,breadcrumb:['广告投放平台PRD','非功能需求'],content:'系统需支持 10 万广告主同时在线，广告检索延迟 < 100ms，计费数据准确率 99.99%。投放数据支持 T+1 对账，差异率低于 0.01%。',start:2100,end:2240},
+    ]
+  },
+  wikiTree:[
+    {category:'组织',pages:[{slug:'entity/tencent',title:'腾讯',type:'entity'},{slug:'entity/weknora-team',title:'WeKnora 团队',type:'entity'}]},
+    {category:'产品',pages:[{slug:'entity/ad-platform',title:'广告投放平台',type:'entity'},{slug:'entity/membership',title:'会员体系',type:'entity'},{slug:'entity/api-gateway',title:'API 网关',type:'entity'}]},
+    {category:'技术',pages:[{slug:'concept/cpc-billing',title:'CPC 计费',type:'concept'},{slug:'concept/ocpc',title:'oCPC 智能出价',type:'concept'},{slug:'concept/microservice',title:'微服务架构',type:'concept'},{slug:'concept/pgvector',title:'pgvector',type:'concept'},{slug:'concept/graphrag',title:'GraphRAG',type:'concept'}]},
+    {category:'综述',pages:[{slug:'overview',title:'全局综述',type:'overview'},{slug:'analysis/billing-compare',title:'计费方式对比分析',type:'analysis'}]},
+    {category:'来源',pages:[{slug:'source/d1',title:'广告投放平台PRD',type:'source'},{slug:'source/d2',title:'用户增长策略',type:'source'},{slug:'source/d3',title:'计费系统说明',type:'source'},{slug:'source/d6',title:'微服务架构设计',type:'source'}]}
+  ],
+  wikiPages:{
+    'entity/ad-platform':{title:'广告投放平台',type:'entity',summary:'面向中小企业的一站式营销广告平台，支持搜索、展示、信息流三种广告投放，核心能力包括智能出价和人群定向。',category:'产品',aliases:['广告平台','投放系统'],sources:['d1','d3'],updatedAt:'2026-08-26 15:00',
+      body:`<h2>概述</h2><p>广告投放平台是面向中小企业的一站式营销工具，支持<strong>搜索广告</strong>、<strong>展示广告</strong>和<strong>信息流广告</strong>三种投放方式。平台核心目标是降低广告主的投放门槛，提升广告 ROI。</p><p>平台由 <span class="wiki-link" onclick="navigateToWikiPage('entity/tencent')">腾讯</span> 广告团队开发，日均处理广告请求超过 100 亿次。</p>
+<h2>目标用户</h2><p>目标用户为中小企业市场人员，日均广告预算 500-50000 元，缺乏专业投放团队，需要平台提供智能化的投放建议和自动化优化能力。</p>
+<h2>计费方式</h2><ul><li><span class="wiki-link" onclick="navigateToWikiPage('concept/cpc-billing')">CPC 计费</span>：关键词快车采用按点击付费，根据出价和质量度排名</li><li>CPT 计费：品牌广告按时长付费，按天/周购买</li><li><span class="wiki-link" onclick="navigateToWikiPage('concept/ocpc')">oCPC 智能出价</span>：基于转化目标自动调价</li></ul>
+<h2>核心功能</h2><h3>智能出价</h3><p>基于机器学习模型，根据广告主的转化目标自动调整出价。支持 oCPC 和 eCPC 两种模式。</p><h3>人群定向</h3><p>支持基础属性、兴趣标签、行为定向和自定义人群包（DMP）。</p>
+<h2>技术架构</h2><p>后端采用 <span class="wiki-link" onclick="navigateToWikiPage('concept/microservice')">微服务架构</span>，通过 <span class="wiki-link" onclick="navigateToWikiPage('entity/api-gateway')">API 网关</span> 统一接入。检索层融合向量检索、BM25 和 <span class="wiki-link" onclick="navigateToWikiPage('concept/graphrag')">GraphRAG</span>。</p>
+<h2>性能指标</h2><ul><li>支持 10 万广告主同时在线</li><li>广告检索延迟 < 100ms</li><li>计费数据准确率 99.99%</li></ul>`},
+    'concept/cpc-billing':{title:'CPC 计费',type:'concept',summary:'Cost Per Click，按点击付费的广告计费模式。',category:'技术',aliases:['按点击付费','CPC'],sources:['d1','d3'],updatedAt:'2026-08-26 15:00',
+      body:`<h2>定义</h2><p><strong>CPC（Cost Per Click）</strong>是一种按点击付费的广告计费模式。广告展示不收费，只有用户点击广告时才产生费用。</p>
+<h2>排名机制</h2><p>在 <span class="wiki-link" onclick="navigateToWikiPage('entity/ad-platform')">广告投放平台</span> 中，排名 = 出价 × 质量度。质量度由点击率、相关性和落地页体验决定。</p>
+<h2>与其他模式对比</h2><ul><li>CPM：按千次曝光，适合品牌曝光</li><li>CPT：按时长，品牌广告采用</li><li><span class="wiki-link" onclick="navigateToWikiPage('concept/ocpc')">oCPC</span>：CPC 的智能升级版</li></ul>`},
+    'concept/ocpc':{title:'oCPC 智能出价',type:'concept',summary:'基于转化目标的智能出价模式。',category:'技术',aliases:['oCPC','目标转化出价'],sources:['d1'],updatedAt:'2026-08-26 15:00',
+      body:`<h2>定义</h2><p><strong>oCPC</strong>是 <span class="wiki-link" onclick="navigateToWikiPage('concept/cpc-billing')">CPC</span> 的智能升级。广告主设定目标转化成本，系统自动差异化出价。</p>
+<h2>三阶段</h2><ol><li>数据积累（普通 CPC，需 20+ 转化）</li><li>模型学习</li><li>智能出价</li></ol>`},
+    'concept/microservice':{title:'微服务架构',type:'concept',summary:'将单体应用拆分为独立部署的小型服务。',category:'技术',aliases:['Microservice'],sources:['d6','d7'],updatedAt:'2026-08-26 15:00',
+      body:`<h2>定义</h2><p><strong>微服务架构</strong>将应用构建为一组小型独立服务，通过 HTTP/gRPC 通信。</p>
+<h2>在广告平台中的应用</h2><p><span class="wiki-link" onclick="navigateToWikiPage('entity/ad-platform')">广告投放平台</span> 拆分为广告检索、计费、用户、报表等服务，通过 <span class="wiki-link" onclick="navigateToWikiPage('entity/api-gateway')">API 网关</span> 统一接入。</p>`},
+    'overview':{title:'全局综述',type:'overview',summary:'综合产品文档库与技术架构文档的知识体系总览。',category:'综述',aliases:[],sources:['d1','d2','d3','d6','d7','d8'],updatedAt:'2026-08-26 15:00',
+      body:`<h2>知识体系总览</h2><p>本 Wiki 由产品文档库（12 篇）和技术架构文档（8 篇）蒸馏而成，共 24 个页面。</p>
+<h2>一、广告投放业务</h2><p>核心产品是 <span class="wiki-link" onclick="navigateToWikiPage('entity/ad-platform')">广告投放平台</span>，计费体系含 <span class="wiki-link" onclick="navigateToWikiPage('concept/cpc-billing')">CPC</span>、CPT、<span class="wiki-link" onclick="navigateToWikiPage('concept/ocpc')">oCPC</span>。</p>
+<h2>二、技术架构</h2><p>后端 <span class="wiki-link" onclick="navigateToWikiPage('concept/microservice')">微服务架构</span>，检索层 <span class="wiki-link" onclick="navigateToWikiPage('concept/pgvector')">pgvector</span> + <span class="wiki-link" onclick="navigateToWikiPage('concept/graphrag')">GraphRAG</span>。</p>`},
+    'source/d1':{title:'广告投放平台PRD（来源摘要）',type:'source',summary:'广告投放平台产品需求文档摘要。',category:'来源',aliases:[],sources:['d1'],updatedAt:'2026-08-26 15:00',
+      body:`<h2>文档信息</h2><ul><li>来源：广告投放平台PRD.md（42 KB，8 个分块）</li><li>上传者：张三 · 2026-08-26</li></ul>
+<h2>关键要点</h2><ul><li>三种广告形式：搜索、展示、信息流</li><li>计费：<span class="wiki-link" onclick="navigateToWikiPage('concept/cpc-billing')">CPC</span> + CPT + <span class="wiki-link" onclick="navigateToWikiPage('concept/ocpc')">oCPC</span></li><li>性能：检索 < 100ms、计费准确率 99.99%</li></ul>`}
+  },
+  versions:[
+    {id:'v4',editor:'agent',summary:'归并新文档「计费系统说明」的 CPC 质量度细节',time:'2026-08-26 15:00',current:true},
+    {id:'v3',editor:'manual',editorName:'张三',summary:'补充腾讯广告团队背景信息',time:'2026-08-26 11:30'},
+    {id:'v2',editor:'agent',summary:'归并新文档「广告投放平台PRD」，创建页面',time:'2026-08-26 10:00'},
+    {id:'v1',editor:'agent',summary:'初始版本',time:'2026-08-25 16:00'},
+  ],
+  graph:{
+    nodes:[
+      {id:'广告投放平台',category:0,symbolSize:50,value:8},{id:'腾讯',category:0,symbolSize:40,value:3},
+      {id:'会员体系',category:0,symbolSize:30,value:2},{id:'API 网关',category:0,symbolSize:35,value:4},
+      {id:'CPC 计费',category:1,symbolSize:42,value:5},{id:'oCPC 智能出价',category:1,symbolSize:38,value:4},
+      {id:'微服务架构',category:1,symbolSize:40,value:5},{id:'pgvector',category:1,symbolSize:30,value:3},
+      {id:'GraphRAG',category:1,symbolSize:32,value:3},{id:'WeKnora 团队',category:0,symbolSize:28,value:2},
+    ],
+    edges:[
+      {source:'腾讯',target:'广告投放平台',relation:'开发'},{source:'腾讯',target:'WeKnora 团队',relation:'拥有'},
+      {source:'广告投放平台',target:'CPC 计费',relation:'使用'},{source:'广告投放平台',target:'oCPC 智能出价',relation:'使用'},
+      {source:'广告投放平台',target:'会员体系',relation:'关联'},{source:'广告投放平台',target:'API 网关',relation:'通过'},
+      {source:'广告投放平台',target:'微服务架构',relation:'采用'},{source:'oCPC 智能出价',target:'CPC 计费',relation:'基于'},
+      {source:'微服务架构',target:'API 网关',relation:'包含'},{source:'微服务架构',target:'pgvector',relation:'使用'},
+      {source:'pgvector',target:'GraphRAG',relation:'配合'},{source:'GraphRAG',target:'广告投放平台',relation:'服务于'},
+    ],
+    categories:[{name:'实体',itemStyle:{color:'#0F766E'}},{name:'概念',itemStyle:{color:'#D97706'}}]
+  },
+  sessions:[
+    {id:'s1',title:'广告平台的计费方式有哪些？',preview:'CPC、CPT、oCPC 三种计费模式…',time:'今天 14:30',active:true},
+    {id:'s2',title:'微服务架构的优缺点',preview:'优势是独立部署和故障隔离…',time:'今天 11:20'},
+    {id:'s3',title:'oCPC 和 CPC 的区别',preview:'oCPC 是基于转化目标的智能出价…',time:'昨天 16:45'},
+  ],
+  messages:[
+    {role:'user',content:'广告平台的计费方式有哪些？'},
+    {role:'assistant',content:'广告投放平台支持三种计费方式：\n\n1. **CPC（按点击付费）**：关键词快车采用，根据出价和质量度决定排名，最低出价 0.3 元 [1]。\n\n2. **CPT（按时长付费）**：品牌广告采用，按天或按周购买，支持开屏、Banner 和搜索彩蛋 [1]。\n\n3. **oCPC（智能出价）**：基于机器学习，根据转化目标自动调整出价 [2]。\n\n其中 oCPC 是 CPC 的智能升级版，需要积累至少 20 个转化数据。',
+      citations:[{id:1,filename:'广告投放平台PRD.md',header:'计费方式 > 关键词快车',snippet:'关键词快车采用 CPC 计费模式。广告主设置关键词出价，系统根据出价和质量度决定广告排名。最低出价 0.3 元。'},{id:2,filename:'广告投放平台PRD.md',header:'核心功能 > 智能出价',snippet:'智能出价功能基于机器学习模型，支持 oCPC 和 eCPC 两种模式。广告主只需设定目标转化成本。'}],
+      traceId:'trace-a1b2c3d4'}
+  ]
+};
+
+// ==================== Router ====================
+function navigate(route,params){
+  currentRoute=route;wikiEditMode=false;
+  if(params){if(params.kbId)currentKBId=params.kbId;if(params.docId)currentDocId=params.docId;if(params.slug)currentWikiSlug=params.slug;}
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.route===route));
+  closeModal();render();
+  if(route==='graph')setTimeout(initGraph,100);
+}
+function login(){document.getElementById('view-login').style.display='none';document.getElementById('view-app').style.display='flex';navigate('dashboard');}
+function switchAuthTab(tab){
+  document.querySelectorAll('.login-tab').forEach(t=>t.classList.toggle('active',t.textContent===(tab==='login'?'登录':'注册')));
+  document.getElementById('auth-login').style.display=tab==='login'?'block':'none';
+  document.getElementById('auth-register').style.display=tab==='register'?'block':'none';
+}
+
+// ==================== Render ====================
+function render(){
+  const c=document.getElementById('page-content');
+  const titles={dashboard:'知识库',wiki:'Wiki 浏览器',graph:'知识图谱',chat:'问答对话',members:'团队成员',settings:'模型设置',audit:'审计日志'};
+  document.getElementById('topbar-title').textContent=titles[currentRoute]||'';
+  const routes={dashboard:renderDashboard,wiki:renderWiki,graph:renderGraphPage,chat:renderChat,members:renderMembers,settings:renderSettings,audit:renderAudit,sourceKB:renderSourceKB,document:renderDocument};
+  c.innerHTML=(routes[currentRoute]||renderDashboard)();
+  if(currentRoute==='wiki')initWikiTree();
+  if(currentRoute==='chat')bindChatEvents();
+}
+
+function permGuard(perm){if(!can(perm))return `<div class="perm-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>当前角色（${ROLE_LABELS[currentRole]}）无此权限，切换为管理员查看</div>`;return '';}
+
+// ==================== Dashboard ====================
+function renderDashboard(){
+  const sourceCards=MOCK.sourceKBs.map(kb=>`<div class="card card-pad kb-card" onclick="navigate('sourceKB',{kbId:'${kb.id}'})">
+    <div class="kb-card-icon" style="background:#EFF6FF;color:#2563EB"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+    <div class="kb-card-title">${kb.name}</div><div class="kb-card-desc">${kb.desc}</div>
+    <div class="kb-card-meta"><span><span class="kb-status-dot ${kb.status}"></span>${kb.docCount} 篇文档</span><span>${kb.updatedAt}</span></div></div>`).join('');
+  const wikiCards=MOCK.wikiKBs.map(kb=>`<div class="card card-pad kb-card" onclick="navigate('wiki')">
+    <div class="kb-card-icon" style="background:var(--accent-light);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+    <div class="kb-card-title">${kb.name}</div><div class="kb-card-desc">${kb.desc}</div>
+    <div class="kb-card-meta"><span><span class="kb-status-dot ${kb.status}"></span>${kb.pageCount} 个页面</span><span>绑定 ${kb.boundKBs.length} 个源库</span><span>${kb.updatedAt}</span></div></div>`).join('');
+  return `<div class="page-header"><div><h2>知识库</h2><div class="desc">管理源文档和自动生成的 Wiki 知识库</div></div>
+    <div class="actions">
+      ${can('doc.upload')?'<button class="btn btn-secondary" onclick="openUploadModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>上传文档</button>':''}
+      ${can('kb.create')?'<button class="btn btn-primary" onclick="openCreateKBModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>创建知识库</button>':''}
+    </div></div>
+    <div class="kb-section-title">源知识库（Source KB）</div><div class="grid-auto">${sourceCards}</div>
+    <div class="kb-section-title">Wiki 知识库（Wiki KB）</div><div class="grid-auto">${wikiCards}</div>`;
+}
+
+// ==================== Source KB Detail ====================
+function renderSourceKB(){
+  const kb=MOCK.sourceKBs.find(k=>k.id===currentKBId);if(!kb)return'<div class="empty-state">知识库不存在</div>';
+  const docs=MOCK.documents[currentKBId]||[];
+  const sb={completed:'<span class="badge badge-success badge-dot">已完成</span>',processing:'<span class="badge badge-warning badge-dot">处理中</span>',failed:'<span class="badge badge-danger badge-dot">失败</span>',pending:'<span class="badge badge-neutral badge-dot">待处理</span>'};
+  const rows=docs.map(d=>`<tr><td><div style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500" onclick="navigate('document',{docId:'${d.id}'})">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${d.type==='md'?'#2563EB':'#78716C'}" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${d.name}</div>
+    ${d.error?`<div style="font-size:11px;color:var(--danger);margin-top:2px">${d.error}</div>`:''}</td>
+    <td>${(d.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</td><td style="text-align:center">${d.chunks}</td><td>${d.size}</td><td>${d.uploadedBy}</td><td>${sb[d.status]}</td><td style="white-space:nowrap">${d.createdAt}</td>
+    <td>${d.status==='failed'?'<button class="btn btn-sm btn-secondary">重试</button>':''}${can('doc.delete')?'<button class="btn btn-sm btn-ghost">删除</button>':''}</td></tr>`).join('');
+  return `<div class="page-header"><div><div class="topbar-crumb" style="margin-bottom:4px"><a onclick="navigate('dashboard')">知识库</a> / <span>${kb.name}</span></div><h2>${kb.name}</h2><div class="desc">${kb.desc} · ${kb.docCount} 篇文档 · Embedding: ${kb.embedding} · chunk ${kb.chunkSize}/${kb.chunkOverlap}</div></div>
+    <div class="actions">
+      ${can('kb.settings')?'<button class="btn btn-secondary" onclick="openChunkPreviewModal()">分块预览</button>':''}
+      ${can('doc.upload')?'<button class="btn btn-primary" onclick="openUploadModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>上传文档</button>':''}
+    </div></div>
+    <div class="card"><div class="card-header">文档列表<div class="actions"><select class="kb-select" style="width:auto"><option>全部标签</option><option>PRD</option><option>架构</option></select></div></div>
+    <table><thead><tr><th>文件名</th><th>标签</th><th style="text-align:center">分块</th><th>大小</th><th>上传者</th><th>状态</th><th>上传时间</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ==================== Document Detail ====================
+function renderDocument(){
+  let doc=null;for(const k in MOCK.documents){const f=MOCK.documents[k].find(d=>d.id===currentDocId);if(f){doc=f;break;}}
+  if(!doc)return'<div class="empty-state">文档不存在</div>';
+  const chunks=MOCK.chunks[currentDocId]||[];
+  const preview=`<div class="card card-pad"><div class="markdown-preview"><h1>广告投放平台PRD</h1><h2>产品概述</h2><p>广告投放平台是面向中小企业的一站式营销工具，支持搜索广告、展示广告和信息流广告三种投放方式。</p><h3>目标用户</h3><p>目标用户为中小企业市场人员，日均广告预算 500-50000 元。</p><h2>计费方式</h2><h3>关键词快车</h3><p>关键词快车采用 CPC 计费模式，最低出价 0.3 元。</p><h3>品牌广告</h3><p>品牌广告采用 CPT 计费模式。</p><h2>核心功能</h2><h3>智能出价</h3><p>支持 oCPC 和 eCPC 两种模式。</p><h2>非功能需求</h2><ul><li>检索延迟 < 100ms</li><li>计费准确率 99.99%</li></ul></div></div>`;
+  const chunksHtml=chunks.length?chunks.map(c=>`<div class="chunk-item"><div class="chunk-header"><span class="chunk-seq">#${String(c.seq).padStart(3,'0')}</span><div class="chunk-breadcrumb">${c.breadcrumb.map((b,i)=>i>0?'<span class="sep">›</span><span class="crumb">'+b+'</span>':'<span class="crumb">'+b+'</span>').join('')}</div></div><div class="chunk-content">${c.content}</div><div class="chunk-meta">位置：${c.start} – ${c.end} · ${c.end-c.start} 字符</div></div>`).join(''):'<div class="empty-state"><p>该文档暂无分块数据</p></div>';
+  return `<div class="page-header"><div><div class="topbar-crumb" style="margin-bottom:4px"><a onclick="navigate('sourceKB',{kbId:'kb1'})">产品文档库</a> / <span>${doc.name}</span></div><h2>${doc.name}</h2><div class="desc">${doc.size} · ${doc.chunks} 个分块 · 上传于 ${doc.createdAt}</div></div></div>
+    <div class="doc-tabs"><div class="doc-tab ${docTab==='preview'?'active':''}" onclick="switchDocTab('preview')">原文预览</div><div class="doc-tab ${docTab==='chunks'?'active':''}" onclick="switchDocTab('chunks')">分块列表 (${chunks.length})</div></div>
+    ${docTab==='preview'?preview:chunksHtml}`;
+}
+function switchDocTab(t){docTab=t;render();}
+
+// ==================== Wiki Browser ====================
+function renderWiki(){
+  const page=MOCK.wikiPages[currentWikiSlug]||MOCK.wikiPages['entity/ad-platform'];
+  const wiki=MOCK.wikiKBs[0];
+  const boundNames=wiki.boundKBs.map(id=>{const k=MOCK.sourceKBs.find(k=>k.id===id);return k?k.name:id;});
+  const typeLabels={entity:'实体',concept:'概念',source:'来源',overview:'综述',analysis:'分析',index:'索引'};
+  const editor=wikiEditMode?`<div class="wiki-editor"><div class="editor-toolbar"><button class="btn btn-primary btn-sm" onclick="saveWikiEdit()">保存</button><button class="btn btn-secondary btn-sm" onclick="cancelWikiEdit()">取消</button></div><textarea id="wiki-edit-area">SUMMARY: ${page.summary}\n\n${page.body.replace(/<[^>]+>/g,'')}</textarea></div>`:
+    `<div class="wiki-page-body">${page.body}</div>`;
+  return `<div class="wiki-layout">
+    <div class="wiki-sidebar">
+      <div class="wiki-sidebar-header">
+        <h3>团队知识 Wiki</h3>
+        <div class="wiki-binding">绑定：${boundNames.map(n=>`<span class="bind-kb">${n}</span>`).join('')}</div>
+        <input class="wiki-search" placeholder="搜索 Wiki 页面…" oninput="filterWikiTree(this.value)">
+      </div>
+      <div class="wiki-tree" id="wiki-tree"></div>
+      <div class="wiki-sidebar-footer">
+        ${can('wiki.ingest')?'<button class="btn btn-primary btn-sm" onclick="showIngestModal()" style="flex:1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>更新 Wiki</button>':''}
+        ${can('kb.settings')?'<button class="btn btn-sm btn-ghost" onclick="openRebuildModal()" title="全量重建"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>':''}
+      </div>
+    </div>
+    <div class="wiki-content"><div class="wiki-content-inner">
+      <div class="wiki-page-header">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="badge badge-accent">${typeLabels[page.type]||page.type}</span>${page.aliases.map(a=>`<span class="tag">${a}</span>`).join('')}</div>
+        <h1 class="wiki-page-title">${page.title}</h1>
+        <div class="wiki-page-meta"><span>最后更新：${page.updatedAt}</span><span>·</span><span class="sources"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${page.sources.length} 个来源文档</span>
+        ${can('wiki.edit')?`<span>·</span><a onclick="startWikiEdit()">${wikiEditMode?'':'编辑'}</a>`:''}
+        ${can('wiki.rollback')?`<span>·</span><a onclick="openVersionModal()">历史版本</a>`:''}</div>
+      </div>
+      ${editor}
+      ${!wikiEditMode?`<div class="wiki-page-footer"><div style="margin-bottom:8px"><strong>来源文档：</strong></div>${page.sources.map(sid=>{let dn=sid;for(const k in MOCK.documents){const d=MOCK.documents[k].find(x=>x.id===sid);if(d)dn=d.name;}return `<span class="source-ref" onclick="navigate('document',{docId:'${sid}'})"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${dn}</span>`;}).join('')}</div>`:''}
+    </div></div></div>`;
+}
+function initWikiTree(){
+  const t=document.getElementById('wiki-tree');if(!t)return;
+  t.innerHTML=MOCK.wikiTree.map((cat,ci)=>`<div class="tree-category" data-cat="${ci}"><div class="tree-category-label" onclick="toggleCategory(${ci})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>${cat.category}<span style="margin-left:auto;font-weight:400;color:var(--text-tertiary)">${cat.pages.length}</span></div><div class="tree-pages">${cat.pages.map(p=>`<div class="tree-page ${p.slug===currentWikiSlug?'active':''}" onclick="navigateToWikiPage('${p.slug}')">${p.title}<span class="page-type">${p.type}</span></div>`).join('')}</div></div>`).join('');
+}
+function toggleCategory(ci){document.querySelector(`.tree-category[data-cat="${ci}"]`).classList.toggle('collapsed');}
+function navigateToWikiPage(slug){currentWikiSlug=slug;wikiEditMode=false;render();}
+function filterWikiTree(q){q=q.toLowerCase();document.querySelectorAll('.tree-page').forEach(el=>{el.style.display=!q||el.textContent.toLowerCase().includes(q)?'':'none';});}
+function startWikiEdit(){wikiEditMode=true;render();setTimeout(()=>{const ta=document.getElementById('wiki-edit-area');if(ta)ta.focus();},50);}
+function cancelWikiEdit(){wikiEditMode=false;render();}
+function saveWikiEdit(){wikiEditMode=false;render();showToast('页面已保存，已创建新修订快照');}
+
+// ==================== Wiki Editor / Version ====================
+function openVersionModal(){
+  const page=MOCK.wikiPages[currentWikiSlug];
+  const vList=MOCK.versions.map(v=>`<div class="version-item ${v.editor==='manual'?'manual':''} ${v.current?'selected':''}" onclick="selectVersion('${v.id}')">
+    <div class="version-dot"></div><div class="version-info"><div class="v-title">${v.summary}${v.current?' <span class="badge badge-accent">当前版本</span>':''}</div><div class="v-meta">${v.editor==='agent'?'系统生成':v.editorName+' 手动编辑'} · ${v.time}</div></div></div>`).join('');
+  const diffHtml=`<div class="diff-view"><div class="diff-line diff-hunk">@@ 计费方式 @@</div>
+    <div class="diff-line diff-del">- CPC 最低出价 0.5 元</div><div class="diff-line diff-add">+ CPC 最低出价 0.3 元</div>
+    <div class="diff-line diff-add">+ 质量度由点击率、相关性和落地页体验三个因素决定</div>
+    <div class="diff-line diff-hunk">@@ 核心功能 @@</div>
+    <div class="diff-line diff-add">+ 支持 oCPC（目标转化出价）模式</div>
+    <div class="diff-line" style="color:var(--text-secondary)">  人群定向支持基础属性和兴趣标签</div></div>`;
+  openModal(`<h3>版本历史 — ${page.title}</h3><p class="modal-desc">点击版本查看差异，可一键回滚到任意历史版本（回滚会创建新修订，不删除历史）</p>
+    <div class="version-list">${vList}</div>
+    <h4 style="font-size:13px;margin-bottom:8px">版本差异（v3 → v4）</h4>${diffHtml}
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">关闭</button><button class="btn btn-primary" onclick="rollbackVersion()">回滚到此版本</button></div>`);
+}
+function selectVersion(id){document.querySelectorAll('.version-item').forEach(el=>el.classList.remove('selected'));event.currentTarget.classList.add('selected');}
+function rollbackVersion(){closeModal();showToast('已回滚，创建了新修订快照');}
+
+// ==================== Ingest Modal ====================
+const STAGES=[{name:'抽取（Extract）',detail:'LLM 从文档中抽取实体/概念骨架'},{name:'引用标注（Citation）',detail:'标注每个 slug 引用了哪些 chunk'},{name:'分类规划（Taxonomy）',detail:'为新页面分配分类目录'},{name:'来源摘要（Summary）',detail:'生成每篇文档的摘要页'},{name:'归并写入（Reduce）',detail:'归并 chunk 原文，生成/更新实体概念页'},{name:'后处理（Post-process）',detail:'双链注入、index/overview 更新、重新向量化'}];
+function showIngestModal(){
+  openModal(`<h3>Wiki 生成中</h3><p class="modal-desc">正在将 3 篇新文档摄入 Wiki，六阶段流水线执行中…</p><div class="stage-list" id="stage-list"></div><div class="modal-footer"><button class="btn btn-secondary" id="ingest-close-btn" onclick="closeModal()" disabled>完成</button></div>`,'modal-lg');
+  const list=document.getElementById('stage-list');
+  list.innerHTML=STAGES.map((s,i)=>`<div class="stage-item" data-stage="${i}"><div class="stage-icon">${i+1}</div><div class="stage-info"><div class="stage-name">${s.name}</div><div class="stage-detail">${s.detail}</div></div></div>`).join('');
+  let cur=0;function run(){if(cur>0){const p=list.querySelector(`[data-stage="${cur-1}"]`);p.classList.remove('running');p.classList.add('done');p.querySelector('.stage-icon').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>';}
+    if(cur<STAGES.length){const el=list.querySelector(`[data-stage="${cur}"]`);el.classList.add('running');el.querySelector('.stage-icon').innerHTML=`<div class="stage-spinner"></div>`;cur++;setTimeout(run,1000+Math.random()*600);}else{document.getElementById('ingest-close-btn').disabled=false;}}
+  setTimeout(run,400);
+}
+function openRebuildModal(){
+  openModal(`<h3>全量重建 Wiki</h3><p class="modal-desc">此操作将清空当前 Wiki KB 的所有页面（包括人工编辑内容），从绑定的 Source KB 重新生成。重建过程中 Wiki 不可查询。</p>
+    <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:12px;font-size:12px;color:#991B1B;margin-bottom:16px">警告：此操作不可撤销。${MOCK.wikiKBs[0].pageCount} 个页面将被删除后重建。</div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-danger" onclick="closeModal();showToast('全量重建已开始')">确认重建</button></div>`);
+}
+
+// ==================== Create KB / Upload / Chunk Preview Modals ====================
+function openCreateKBModal(){
+  openModal(`<h3>创建知识库</h3><p class="modal-desc">选择要创建的知识库类型</p>
+    <div class="form-group"><label>知识库类型</label><select id="kb-type" onchange="toggleCreateKBType()"><option value="source">源知识库（Source KB）— 存储原始文档</option><option value="wiki">Wiki 知识库（Wiki KB）— 自动蒸馏的结构化知识</option></select></div>
+    <div id="create-source-form"><div class="form-group"><label>名称</label><input placeholder="如：产品文档库"></div>
+    <div class="form-group"><label>描述</label><input placeholder="简要描述知识库用途"></div>
+    <div class="form-row"><div class="form-group"><label>Chunk 大小</label><input value="512"></div><div class="form-group"><label>重叠大小</label><input value="80"></div></div>
+    <div class="form-group"><label>Embedding 模型</label><select><option>Ollama: bge-m3（本地，1024 维）</option><option>OpenAI: text-embedding-3-small（1536 维）</option></select><div class="form-hint">选定后不可更改，更换需重建索引</div></div></div>
+    <div id="create-wiki-form" style="display:none"><div class="form-group"><label>名称</label><input placeholder="如：团队知识 Wiki"></div>
+    <div class="form-group"><label>描述</label><input placeholder="简要描述"></div>
+    <div class="form-group"><label>绑定 Source KB</label><div class="check-list">${MOCK.sourceKBs.map(k=>`<label class="check-item"><input type="checkbox" checked> ${k.name}（${k.docCount} 篇）</label>`).join('')}</div><div class="form-hint">至少绑定一个源知识库</div></div>
+    <div class="form-row"><div class="form-group"><label>LLM 模型</label><select><option>DeepSeek V3</option><option>GPT-4o</option><option>GPT-4o-mini</option></select></div><div class="form-group"><label>温度</label><input value="0.7"></div></div>
+    <div class="toggle-row"><div><div class="toggle-label">新文档自动触发 Wiki 更新</div><div class="toggle-hint">关闭时需手动点击"更新 Wiki"</div></div><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="closeModal();showToast('知识库已创建')">创建</button></div>`);
+}
+function toggleCreateKBType(){const t=document.getElementById('kb-type').value;document.getElementById('create-source-form').style.display=t==='source'?'block':'none';document.getElementById('create-wiki-form').style.display=t==='wiki'?'block':'none';}
+
+function openUploadModal(){
+  openModal(`<h3>上传文档</h3><p class="modal-desc">支持 Markdown（.md）和纯文本（.txt），单文件最大 10MB</p>
+    <div class="upload-zone" onclick="simulateUpload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><p>点击或拖拽文件到此处上传</p><p class="hint">仅支持 .md / .txt</p></div>
+    <div id="upload-list"></div>
+    <div class="form-group mt-4"><label>标签（可选）</label><input placeholder="输入标签，回车确认"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="closeModal();showToast('文档已上传，正在异步解析')">开始上传</button></div>`);
+}
+function simulateUpload(){
+  const list=document.getElementById('upload-list');
+  list.innerHTML=`<div class="upload-file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="file-name">新产品需求文档.md</span><span class="text-sm text-secondary">18 KB</span></div><div class="upload-progress"><div class="upload-progress-fill" id="up-prog" style="width:0%"></div></div>`;
+  let p=0;const t=setInterval(()=>{p+=Math.random()*20;if(p>=100){p=100;clearInterval(t);}document.getElementById('up-prog').style.width=p+'%';},200);
+}
+
+function openChunkPreviewModal(){
+  const sample=`# 广告投放平台PRD\n## 产品概述\n广告投放平台是面向中小企业的一站式营销工具。\n### 目标用户\n目标用户为中小企业市场人员。\n## 计费方式\n### 关键词快车\n关键词快车采用 CPC 计费模式。最低出价 0.3 元。\n### 品牌广告\n品牌广告采用 CPT 计费模式。\n## 核心功能\n### 智能出价\n支持 oCPC 和 eCPC 两种模式。`;
+  openModal(`<h3>分块预览</h3><p class="modal-desc">粘贴 Markdown 文本，预览 Header 路径感知切分结果</p>
+    <div class="form-row"><div class="form-group"><label>Chunk 大小</label><input value="512"></div><div class="form-group"><label>重叠</label><input value="80"></div></div>
+    <div class="form-group"><label>输入文本</label><textarea id="chunk-input" rows="6" oninput="runChunkPreview()">${sample}</textarea></div>
+    <div id="chunk-preview-result" class="chunk-preview-result"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">关闭</button></div>`,'modal-lg');
+  setTimeout(runChunkPreview,50);
+}
+function runChunkPreview(){
+  const text=document.getElementById('chunk-input').value;if(!text)return;
+  const lines=text.split('\n');let path=[];let chunks=[];let curContent='';let curPath=[];
+  lines.forEach(line=>{const m=line.match(/^(#{1,3})\s+(.+)/);if(m){if(curContent.trim()){chunks.push({path:[...curPath],content:curContent.trim()});}const level=m[1].length;const title=m[2].trim();if(level===1)path=[title];else if(level===2)path=[path[0]||'',title].filter(Boolean);else if(level===3)path=[path[0]||'',path[1]||'',title].filter(Boolean);curPath=[...path];curContent=line+'\n';}else{curContent+=line+'\n';}});
+  if(curContent.trim())chunks.push({path:curPath,content:curContent.trim()});
+  const res=document.getElementById('chunk-preview-result');
+  res.innerHTML=`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">共 ${chunks.length} 个 chunk</div>`+chunks.map((c,i)=>`<div class="preview-chunk"><div class="pc-header">#${String(i+1).padStart(3,'0')} ${c.path.length?c.path.map((p,j)=>j>0?'<span class="sep">›</span><span class="crumb">'+p+'</span>':'<span class="crumb">'+p+'</span>').join(''):'<span style="color:var(--text-tertiary)">(无标题)</span>'}</div><div class="pc-content">${c.content.substring(0,150)}${c.content.length>150?'…':''}</div><div class="pc-meta">${c.content.length} 字符</div></div>`).join('');
+}
+
+// ==================== Graph ====================
+let graphFilter={0:true,1:true};
+function renderGraphPage(){
+  return `<div class="graph-container" id="graph-chart"></div>
+    <div class="graph-toolbar"><h4>知识图谱</h4><div class="graph-legend">
+      <div class="legend-item active" data-cat="0" onclick="toggleGraphFilter(0)"><span class="legend-dot" style="background:#0F766E"></span>实体（${MOCK.graph.nodes.filter(n=>n.category===0).length}）</div>
+      <div class="legend-item active" data-cat="1" onclick="toggleGraphFilter(1)"><span class="legend-dot" style="background:#D97706"></span>概念（${MOCK.graph.nodes.filter(n=>n.category===1).length}）</div></div></div>
+    <div class="graph-stats"><div>节点：<strong id="graph-node-count">${MOCK.graph.nodes.length}</strong></div><div>关系：<strong id="graph-edge-count">${MOCK.graph.edges.length}</strong></div><div style="margin-top:6px;color:var(--text-tertiary)">点击节点查看 Wiki 页面</div></div>`;
+}
+function toggleGraphFilter(cat){
+  graphFilter[cat]=!graphFilter[cat];
+  document.querySelector(`.legend-item[data-cat="${cat}"]`).classList.toggle('active',graphFilter[cat]);
+  if(!graphChart)return;
+  const allowed=MOCK.graph.nodes.filter(n=>graphFilter[n.category]).map(n=>n.id);
+  graphChart.setOption({series:[{data:MOCK.graph.nodes.map(n=>({...n,itemStyle:graphFilter[n.category]?null:{opacity:0.15}})),links:MOCK.graph.edges.filter(e=>allowed.includes(e.source)&&allowed.includes(e.target))}]});
+  document.getElementById('graph-node-count').textContent=allowed.length;
+  document.getElementById('graph-edge-count').textContent=MOCK.graph.edges.filter(e=>allowed.includes(e.source)&&allowed.includes(e.target)).length;
+}
+function initGraph(){
+  const el=document.getElementById('graph-chart');if(!el)return;
+  if(graphChart){graphChart.dispose();graphChart=null;}
+  graphChart=echarts.init(el);
+  graphChart.setOption({tooltip:{formatter:function(p){if(p.dataType==='edge')return p.data.source+' → '+p.data.target+'<br/><span style="color:#999">'+p.data.relation+'</span>';return '<strong>'+p.name+'</strong><br/><span style="color:#999">'+MOCK.graph.categories[p.data.category].name+'</span>';}},
+    series:[{type:'graph',layout:'force',data:MOCK.graph.nodes,links:MOCK.graph.edges,categories:MOCK.graph.categories,roam:true,draggable:true,label:{show:true,position:'right',fontSize:12,color:'#44403C'},edgeLabel:{show:true,fontSize:10,color:'#A8A29E',formatter:p=>p.data.relation,backgroundColor:'#FAFAF9',padding:[2,5],borderRadius:3},lineStyle:{color:'#D6D3D1',width:1.5,curveness:0.1},emphasis:{focus:'adjacency',lineStyle:{width:2.5,color:'#0F766E'}},force:{repulsion:300,edgeLength:[100,180],gravity:0.08}}]});
+  graphChart.on('click',function(p){if(p.dataType==='node'){const map={'广告投放平台':'entity/ad-platform','CPC 计费':'concept/cpc-billing','oCPC 智能出价':'concept/ocpc','微服务架构':'concept/microservice'};if(map[p.name]){navigate('wiki');setTimeout(()=>navigateToWikiPage(map[p.name]),80);}}});
+  window.addEventListener('resize',()=>graphChart&&graphChart.resize());
+}
+
+// ==================== Chat ====================
+function renderChat(){
+  const sessions=MOCK.sessions.map(s=>`<div class="session-item ${s.active?'active':''}" onclick="selectSession('${s.id}')">
+    <div class="session-title">${s.title}</div><div class="session-preview">${s.preview}</div><div class="session-time">${s.time}</div>
+    <div class="session-actions"><button title="重命名" onclick="event.stopPropagation();showToast('已重命名')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button title="删除" onclick="event.stopPropagation();showToast('已删除')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div>`).join('');
+  const hasMessages=MOCK.messages.length>0;
+  const messages=MOCK.messages.map(m=>{if(m.role==='user')return `<div class="chat-message user"><div class="chat-bubble">${m.content}</div></div>`;
+    const citations=m.citations.map((c,i)=>`<div class="citation-chip" onmouseenter="showCitationPopover(this,${i})" onmouseleave="hideCitationPopover()"><span class="num">${c.id}</span>${c.filename} · ${c.header}</div>`).join('');
+    return `<div class="chat-message assistant"><div class="chat-bubble">${m.content.replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\[(\d+)\]/g,'<span class="citation-chip" style="display:inline-flex;vertical-align:middle;margin:0 2px"><span class="num">$1</span></span>')}<div class="chat-citations">${citations}</div><div class="chat-trace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>向量 12 条 · BM25 8 条 · 图谱 3 条 → RRF 融合后 6 条 · trace: ${m.traceId}</div></div></div>`;}).join('');
+  const recommended=`<div class="recommended-questions"><div class="rq-label">推荐问题</div>
+    <div class="rq-chip" onclick="askQuestion('广告平台的计费方式有哪些？')">广告平台的计费方式有哪些？</div>
+    <div class="rq-chip" onclick="askQuestion('微服务架构有什么优缺点？')">微服务架构有什么优缺点？</div>
+    <div class="rq-chip" onclick="askQuestion('oCPC 和 CPC 有什么区别？')">oCPC 和 CPC 有什么区别？</div>
+    <div class="rq-chip" onclick="askQuestion('广告检索的性能要求是什么？')">广告检索的性能要求是什么？</div></div>`;
+  return `<div class="chat-layout"><div class="chat-sessions"><div class="chat-sessions-header"><h3>会话列表</h3><select class="kb-select"><option>全部知识库</option><option>产品文档库</option><option>团队知识 Wiki</option></select></div>
+    <div class="session-list">${sessions}</div><div style="padding:10px 12px;border-top:1px solid var(--border)"><button class="btn btn-secondary btn-block" onclick="newSession()">+ 新建会话</button></div></div>
+    <div class="chat-main"><div class="chat-messages" id="chat-messages">${hasMessages?messages:'<div class="chat-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>选择知识库，开始提问</p></div>'}${hasMessages?'':recommended}</div>
+    <div class="chat-input-bar"><div class="chat-input-wrap"><textarea class="chat-input" id="chat-input" rows="1" placeholder="输入问题，Enter 发送，Shift+Enter 换行…"></textarea><button class="chat-send" onclick="sendMessage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div><div class="chat-hint">向量 + BM25 + GraphRAG 三路混合检索 · 回答附带来源引用</div></div></div></div>`;
+}
+function bindChatEvents(){const input=document.getElementById('chat-input');if(!input)return;
+  input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+  input.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';});
+  const msgs=document.getElementById('chat-messages');if(msgs)msgs.scrollTop=msgs.scrollHeight;}
+function selectSession(id){MOCK.sessions.forEach(s=>s.active=s.id===id);render();}
+function newSession(){MOCK.messages=[];MOCK.sessions.forEach(s=>s.active=false);render();}
+function askQuestion(q){const input=document.getElementById('chat-input');if(input){input.value=q;sendMessage();}}
+function showCitationPopover(el,idx){
+  hideCitationPopover();
+  const c=MOCK.messages[1].citations[idx];
+  const pop=document.createElement('div');pop.className='citation-popover';pop.id='citation-popover';
+  pop.innerHTML=`<div class="pop-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${c.filename}</div><div style="font-size:11px;color:var(--accent);margin-bottom:6px">${c.header}</div><div class="pop-snippet">${c.snippet}</div><a class="pop-link" onclick="navigate('document',{docId:'d1'});hideCitationPopover()">查看原文 →</a>`;
+  el.appendChild(pop);
+}
+function hideCitationPopover(){const p=document.getElementById('citation-popover');if(p)p.remove();}
+function sendMessage(){
+  const input=document.getElementById('chat-input');const q=input.value.trim();if(!q)return;
+  input.value='';input.style.height='auto';
+  const msgs=document.getElementById('chat-messages');
+  msgs.insertAdjacentHTML('beforeend',`<div class="chat-message user"><div class="chat-bubble">${q}</div></div>`);
+  const thinking=document.createElement('div');thinking.className='chat-message assistant';
+  thinking.innerHTML='<div class="chat-bubble" id="streaming-bubble"><span style="color:var(--text-tertiary)">正在检索知识库…</span></div>';
+  msgs.appendChild(thinking);msgs.scrollTop=msgs.scrollHeight;
+  setTimeout(()=>{
+    const bubble=document.getElementById('streaming-bubble');
+    const responses={'计费':'广告投放平台支持三种计费方式：\n\n1. **CPC（按点击付费）**：关键词快车采用，最低出价 0.3 元 [1]。\n2. **CPT（按时长付费）**：品牌广告按天/周购买 [1]。\n3. **oCPC（智能出价）**：基于转化目标自动调价 [2]。','架构':'系统后端采用**微服务架构**，通过 API 网关统一接入。核心服务包括广告检索、计费、用户和报表 [1]。检索层使用 pgvector 向量检索配合 BM25 [2]。','default':'根据知识库检索结果，相关信息如下：\n\n该问题涉及多个文档内容，建议查看 Wiki 中的相关页面获取更完整的信息。'};
+    let text=responses.default;for(const k in responses){if(q.includes(k)){text=responses[k];break;}}
+    const citations=q.includes('计费')?[{id:1,filename:'广告投放平台PRD.md',header:'计费方式',snippet:'关键词快车采用 CPC 计费模式…最低出价 0.3 元。'},{id:2,filename:'广告投放平台PRD.md',header:'核心功能 > 智能出价',snippet:'智能出价基于机器学习模型…支持 oCPC 和 eCPC'}]:q.includes('架构')?[{id:1,filename:'微服务架构设计.md',header:'架构概述',snippet:'系统采用微服务架构，拆分为多个独立服务。'},{id:2,filename:'API网关技术方案.md',header:'技术选型',snippet:'API 网关负责路由、限流和鉴权。'}]:[];
+    let idx=0;const plain=text.replace(/\*\*/g,'');bubble.innerHTML='';
+    const timer=setInterval(()=>{if(idx>=plain.length){clearInterval(timer);let html=text.replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+      citations.forEach(c=>{html=html.replace(`[${c.id}]`,`<span class="citation-chip" style="display:inline-flex;vertical-align:middle;margin:0 2px"><span class="num">${c.id}</span></span>`);});
+      if(citations.length)html+='<div class="chat-citations">'+citations.map((c,i)=>`<div class="citation-chip" onmouseenter="showCitationPopover(this,${i})" onmouseleave="hideCitationPopover()"><span class="num">${c.id}</span>${c.filename} · ${c.header}</div>`).join('')+'</div>';
+      html+='<div class="chat-trace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>向量 10 条 · BM25 6 条 · 图谱 2 条 → RRF 融合后 5 条</div>';
+      bubble.innerHTML=html;msgs.scrollTop=msgs.scrollHeight;return;}
+      bubble.textContent=plain.substring(0,++idx);msgs.scrollTop=msgs.scrollHeight;},20);
+  },800);
+}
+
+// ==================== Members / Settings / Audit ====================
+function renderMembers(){
+  if(!can('member.manage'))return permGuard('member.manage')+'<div class="card card-pad"><div class="empty-state"><p>仅管理员可管理团队成员</p></div></div>';
+  const members=[{name:'张三',email:'zhangsan@example.com',role:'admin',joined:'2026-08-01'},{name:'李四',email:'lisi@example.com',role:'editor',joined:'2026-08-10'},{name:'王五',email:'wangwu@example.com',role:'editor',joined:'2026-08-15'},{name:'赵六',email:'zhaoliu@example.com',role:'viewer',joined:'2026-08-20'}];
+  const rb={admin:'<span class="badge badge-accent">管理员</span>',editor:'<span class="badge badge-info">编辑者</span>',viewer:'<span class="badge badge-neutral">查看者</span>'};
+  return `<div class="page-header"><div><h2>团队成员</h2><div class="desc">产品研发部 · 4 名成员</div></div><div class="actions"><button class="btn btn-primary">+ 邀请成员</button></div></div>
+    <div class="card"><table><thead><tr><th>姓名</th><th>邮箱</th><th>角色</th><th>加入时间</th><th>操作</th></tr></thead><tbody>${members.map(m=>`<tr><td><div style="display:flex;align-items:center;gap:8px"><div class="user-avatar" style="width:28px;height:28px;font-size:11px">${m.name[0]}</div>${m.name}</div></td><td>${m.email}</td><td>${rb[m.role]}</td><td>${m.joined}</td><td><button class="btn btn-sm btn-ghost">修改角色</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderSettings(){
+  if(!can('model.config'))return permGuard('model.config')+'<div class="card card-pad"><div class="empty-state"><p>仅管理员可配置模型</p></div></div>';
+  return `<div class="page-header"><h2>模型设置</h2></div>
+    <div class="grid-2"><div class="card card-pad"><h3 style="font-size:14px;font-weight:600;margin-bottom:14px">LLM 模型</h3>
+      <div class="form-group"><label>提供商</label><select style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"><option>OpenAI</option><option>DeepSeek</option></select></div>
+      <div class="form-group"><label>API Key</label><input type="password" value="sk-••••••••••••••••" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"></div>
+      <div class="form-group"><label>Base URL</label><input value="https://api.openai.com/v1" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"></div>
+      <div class="form-group"><label>模型</label><select style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"><option>gpt-4o</option><option>gpt-4o-mini</option><option>deepseek-chat</option></select></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary">保存</button><button class="btn btn-secondary">测试连通性</button></div></div>
+    <div class="card card-pad"><h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Embedding 模型</h3>
+      <div class="form-group"><label>提供商</label><select style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"><option>Ollama 本地</option><option>OpenAI API</option></select></div>
+      <div class="form-group"><label>Ollama 地址</label><input value="http://host.docker.internal:11434" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"></div>
+      <div class="form-group"><label>模型</label><input value="bge-m3" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"></div>
+      <div class="form-group"><label>向量维度</label><input value="1024" disabled style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)"></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary">保存</button><button class="btn btn-secondary">测试连通性</button></div></div></div>
+    <div class="card card-pad mt-4"><h3 style="font-size:14px;font-weight:600;margin-bottom:14px">可观测性（Langfuse）</h3>
+      <div class="grid-2"><div class="form-group"><label>Langfuse Host</label><input value="http://langfuse:3000" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"></div><div class="form-group"><label>Public Key</label><input value="pk-lf-••••••" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px"></div></div></div>`;
+}
+function renderAudit(){
+  if(!can('audit.view'))return permGuard('audit.view')+'<div class="card card-pad"><div class="empty-state"><p>仅管理员可查看审计日志</p></div></div>';
+  const logs=[{time:'2026-08-27 14:30',user:'张三',action:'wiki.ingest',target:'团队知识 Wiki',detail:'触发 Wiki 更新，3 篇文档'},{time:'2026-08-27 10:00',user:'张三',action:'document.upload',target:'会员体系设计.md',detail:'上传到产品文档库'},{time:'2026-08-26 15:00',user:'系统',action:'wiki.ingest',target:'团队知识 Wiki',detail:'自动摄入完成，新增 5 个页面'},{time:'2026-08-26 14:20',user:'张三',action:'document.upload',target:'广告投放平台PRD.md',detail:'上传到产品文档库'},{time:'2026-08-26 11:30',user:'张三',action:'wiki.page_edit',target:'CPC 计费',detail:'人工编辑页面内容'},{time:'2026-08-25 10:00',user:'王五',action:'document.upload',target:'微服务架构设计.md',detail:'上传到技术架构文档'},{time:'2026-08-20 14:00',user:'张三',action:'member.invite',target:'赵六',detail:'邀请为查看者'}];
+  return `<div class="page-header"><h2>审计日志</h2></div><div class="card"><table><thead><tr><th>时间</th><th>操作人</th><th>操作</th><th>对象</th><th>详情</th></tr></thead><tbody>${logs.map(l=>`<tr><td style="white-space:nowrap">${l.time}</td><td>${l.user}</td><td><span class="tag">${l.action}</span></td><td>${l.target}</td><td>${l.detail}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ==================== Modal & Toast ====================
+function openModal(html,size){const c=document.getElementById('modal-container');c.innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal ${size||''}" style="position:relative">${html}<button class="modal-close" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>`;}
+function closeModal(){document.getElementById('modal-container').innerHTML='';}
+function showToast(msg){const t=document.createElement('div');t.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#1C1917;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:300;box-shadow:0 4px 12px rgba(0,0,0,.2);animation:fadeIn .2s';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
+</script>
+</body>
+</html>
