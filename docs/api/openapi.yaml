@@ -1,0 +1,2451 @@
+openapi: 3.1.0
+info:
+  title: OpenWiki V2 v1 API
+  version: 1.0.0
+  summary: 企业内部 LLM Wiki 知识库系统 v1 API 契约
+  license:
+    name: Internal
+    identifier: UNLICENSED
+  description: |
+    本契约覆盖 OpenWiki V2 v1 的 M0-M6 API。
+
+    文档优先级：ROADMAP > PRD > TRD > Architecture。ROADMAP 中的 v1 冻结约束覆盖 TRD 中与 v1 范围不一致的完整形态描述。
+servers:
+  - url: /api/v1
+    description: v1 API prefix
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+    description: 注册、登录、token 刷新和登出。
+  - name: Current Workspace
+    description: v1 唯一 Workspace 的读取与重命名。
+  - name: Members
+    description: 唯一 Workspace 内成员与角色管理。
+  - name: Model Settings
+    description: 全局 LLM 配置和 Ollama embedding 模型发现。
+  - name: Knowledge Bases
+    description: Source KB、Wiki KB、绑定关系和分块预览。
+  - name: Documents
+    description: Markdown/TXT 文档上传、列表、详情、删除和重试。
+  - name: Tags
+    description: 文档标签管理。
+  - name: Tasks
+    description: 基于 task_pending_ops 的长任务状态查询。
+  - name: Wiki
+    description: Wiki ingest、页面、版本、diff、回滚和图谱。
+  - name: Chat
+    description: 单 KB 会话、消息历史和 SSE 流式问答。
+  - name: Audit
+    description: 管理员审计日志查询。
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册账号
+      description: 首个注册用户在同一事务中创建唯一 Workspace 并成为 Admin；后续注册用户默认不属于团队。
+      security: []
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新 access token
+      security: []
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出当前 refresh token
+      operationId: logout
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "204":
+          description: 登出成功
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /workspaces/current:
+    get:
+      tags: [Current Workspace]
+      summary: 获取唯一团队
+      operationId: getCurrentWorkspace
+      responses:
+        "200":
+          description: 当前用户所属团队
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    patch:
+      tags: [Current Workspace]
+      summary: 重命名唯一团队
+      operationId: updateCurrentWorkspace
+      x-rbac: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceUpdateRequest"
+      responses:
+        "200":
+          description: 更新后的团队
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /workspaces/current/members:
+    get:
+      tags: [Members]
+      summary: 获取成员列表
+      operationId: listMembers
+      x-rbac: [admin]
+      responses:
+        "200":
+          description: 成员列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkspaceMember"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Members]
+      summary: 添加已有用户为团队成员
+      operationId: addMember
+      x-rbac: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberCreateRequest"
+      responses:
+        "201":
+          description: 成员已添加
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceMember"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /workspaces/current/members/{user_id}:
+    patch:
+      tags: [Members]
+      summary: 修改成员角色
+      operationId: updateMemberRole
+      x-rbac: [admin]
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRoleUpdateRequest"
+      responses:
+        "200":
+          description: 更新后的成员
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceMember"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: 禁止降级最后一名 Admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Members]
+      summary: 移除成员
+      operationId: removeMember
+      x-rbac: [admin]
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: 成员已移除
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: 禁止移除最后一名 Admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/llm-config:
+    get:
+      tags: [Model Settings]
+      summary: 获取全局 LLM 配置
+      operationId: getLlmConfig
+      x-rbac: [admin]
+      responses:
+        "200":
+          description: LLM 配置状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LlmConfigResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Model Settings]
+      summary: 保存全局 LLM 配置
+      operationId: updateLlmConfig
+      x-rbac: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LlmConfigUpdateRequest"
+      responses:
+        "200":
+          description: 已保存
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LlmConfigResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /admin/llm-config/test:
+    post:
+      tags: [Model Settings]
+      summary: 测试 LLM 连通性
+      operationId: testLlmConfig
+      x-rbac: [admin]
+      responses:
+        "200":
+          description: 测试结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelTestResult"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /admin/ollama-config:
+    get:
+      tags: [Model Settings]
+      summary: 获取 Ollama 配置
+      operationId: getOllamaConfig
+      x-rbac: [admin]
+      responses:
+        "200":
+          description: Ollama 配置
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OllamaConfig"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Model Settings]
+      summary: 保存 Ollama 地址
+      operationId: updateOllamaConfig
+      x-rbac: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OllamaConfigUpdateRequest"
+      responses:
+        "200":
+          description: 更新后的 Ollama 配置
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OllamaConfig"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /admin/ollama/models:
+    get:
+      tags: [Model Settings]
+      summary: 发现 Ollama embedding 模型
+      operationId: listOllamaModels
+      description: 返回 tag、digest、capability、实测维度、v1 可用性和不可用原因；非 embedding 或非 1024 维模型不可用于创建 KB。
+      x-rbac: [admin]
+      responses:
+        "200":
+          description: 模型列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OllamaModelProbeResult"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /admin/ollama/models/probe:
+    post:
+      tags: [Model Settings]
+      summary: 探测指定 Ollama 模型
+      operationId: probeOllamaModel
+      x-rbac: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OllamaModelProbeRequest"
+      responses:
+        "200":
+          description: 探测结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OllamaModelProbeResult"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /kbs:
+    get:
+      tags: [Knowledge Bases]
+      summary: 知识库列表
+      operationId: listKnowledgeBases
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: "#/components/schemas/KnowledgeBaseType"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/KnowledgeBaseStatus"
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 128
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 知识库分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBasePage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Knowledge Bases]
+      summary: 创建 Source KB 或 Wiki KB
+      operationId: createKnowledgeBase
+      x-rbac: [admin]
+      description: v1 仅允许 Ollama 1024 维 embedding 模型；创建后模型 tag、digest、维度不可通过更新接口修改。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SourceKnowledgeBaseCreateRequest"
+                - $ref: "#/components/schemas/WikiKnowledgeBaseCreateRequest"
+      responses:
+        "201":
+          description: 知识库已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /kbs/{kb_id}:
+    get:
+      tags: [Knowledge Bases]
+      summary: 知识库详情
+      operationId: getKnowledgeBase
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      responses:
+        "200":
+          description: 知识库详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Knowledge Bases]
+      summary: 更新知识库可变设置
+      operationId: updateKnowledgeBase
+      x-rbac: [admin]
+      description: 不允许修改 embedding_provider、embedding_model_tag、embedding_model_digest、embedding_dim。
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseUpdateRequest"
+      responses:
+        "200":
+          description: 更新后的知识库
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Knowledge Bases]
+      summary: 删除知识库
+      operationId: deleteKnowledgeBase
+      x-rbac: [admin]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      responses:
+        "204":
+          description: 删除成功
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /kbs/{kb_id}/bindings:
+    post:
+      tags: [Knowledge Bases]
+      summary: 为 Wiki KB 绑定 Source KB
+      operationId: bindSourceKnowledgeBase
+      x-rbac: [admin]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WikiSourceBindingRequest"
+      responses:
+        "201":
+          description: 绑定成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiSourceBinding"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /kbs/{kb_id}/bindings/{source_kb_id}:
+    delete:
+      tags: [Knowledge Bases]
+      summary: 解绑 Source KB
+      operationId: unbindSourceKnowledgeBase
+      x-rbac: [admin]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+        - name: source_kb_id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: 解绑成功
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /kbs/{kb_id}/chunk-preview:
+    post:
+      tags: [Knowledge Bases]
+      summary: 分块预览
+      operationId: previewChunks
+      x-rbac: [admin]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChunkPreviewRequest"
+      responses:
+        "200":
+          description: 分块预览结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChunkPreviewItem"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /kbs/{kb_id}/documents/upload:
+    post:
+      tags: [Documents]
+      summary: 上传 Markdown/TXT 文档
+      operationId: uploadDocuments
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                tag_ids:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Uuid"
+      responses:
+        "202":
+          description: 已创建文档和处理任务
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUploadResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: 同一 KB 内存在相同 SHA-256 文件
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /kbs/{kb_id}/documents:
+    get:
+      tags: [Documents]
+      summary: 文档列表
+      operationId: listDocuments
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 128
+        - name: tag_id
+          in: query
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/DocumentStatus"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at_desc, created_at_asc, filename_asc, filename_desc]
+            default: created_at_desc
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 文档分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /documents/{document_id}:
+    get:
+      tags: [Documents]
+      summary: 文档详情
+      operationId: getDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: 文档详情，包含原文预览和 chunks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Documents]
+      summary: 删除文档
+      operationId: deleteDocument
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "204":
+          description: 删除成功，并清理 chunks 与向量索引
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /documents/{document_id}/retry:
+    post:
+      tags: [Documents]
+      summary: 重试失败文档处理
+      operationId: retryDocument
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "202":
+          description: 已创建新的重试任务
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAcceptedResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /kbs/{kb_id}/tags:
+    get:
+      tags: [Tags]
+      summary: 标签列表
+      operationId: listTags
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      responses:
+        "200":
+          description: 标签列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Tag"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Tags]
+      summary: 创建标签
+      operationId: createTag
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagCreateRequest"
+      responses:
+        "201":
+          description: 标签已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /kbs/{kb_id}/tags/{tag_id}:
+    patch:
+      tags: [Tags]
+      summary: 重命名标签
+      operationId: updateTag
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+        - $ref: "#/components/parameters/TagId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagCreateRequest"
+      responses:
+        "200":
+          description: 更新后的标签
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Tags]
+      summary: 删除标签
+      operationId: deleteTag
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+        - $ref: "#/components/parameters/TagId"
+      responses:
+        "204":
+          description: 删除成功
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: 查询任务状态
+      operationId: getTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 任务状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /wiki/{kb_id}/ingest:
+    post:
+      tags: [Wiki]
+      summary: 触发 Wiki 生成或增量更新
+      operationId: ingestWiki
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WikiIngestRequest"
+      responses:
+        "202":
+          description: 已创建 Wiki ingest 任务
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAcceptedResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Wiki 正在更新中
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /wiki/{kb_id}/rebuild:
+    post:
+      tags: [Wiki]
+      summary: 全量重建 Wiki
+      operationId: rebuildWiki
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WikiRebuildRequest"
+      responses:
+        "202":
+          description: 已创建重建任务，重建期间 Wiki KB 不可查询
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAcceptedResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /wiki/{kb_id}/pages:
+    get:
+      tags: [Wiki]
+      summary: Wiki 页面列表
+      operationId: listWikiPages
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 128
+        - name: page_type
+          in: query
+          schema:
+            $ref: "#/components/schemas/WikiPageType"
+      responses:
+        "200":
+          description: 页面树和扁平列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiPageListResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Wiki KB 重建中或 embedding 不兼容
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /wiki/{kb_id}/graph:
+    get:
+      tags: [Wiki]
+      summary: 获取知识图谱数据
+      operationId: getWikiGraph
+      parameters:
+        - $ref: "#/components/parameters/KbId"
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+        - name: relation_type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 图谱节点和边
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiGraph"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /wiki-pages/{page_id}:
+    get:
+      tags: [Wiki]
+      summary: Wiki 页面详情
+      operationId: getWikiPage
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+      responses:
+        "200":
+          description: 页面详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Wiki]
+      summary: 人工编辑 Wiki 页面
+      operationId: updateWikiPage
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WikiPageUpdateRequest"
+      responses:
+        "200":
+          description: 更新后的页面
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /wiki-pages/{page_id}/revisions:
+    get:
+      tags: [Wiki]
+      summary: 页面修订历史
+      operationId: listWikiPageRevisions
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 修订分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiRevisionPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /wiki-pages/{page_id}/revisions/{revision_id}:
+    get:
+      tags: [Wiki]
+      summary: 查看指定修订
+      operationId: getWikiPageRevision
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+        - $ref: "#/components/parameters/RevisionId"
+      responses:
+        "200":
+          description: 修订详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiPageRevision"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /wiki-pages/{page_id}/diff:
+    get:
+      tags: [Wiki]
+      summary: 对比两个修订
+      operationId: diffWikiPageRevisions
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+        - name: from
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: to
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: 行级 diff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiRevisionDiff"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /wiki-pages/{page_id}/rollback:
+    post:
+      tags: [Wiki]
+      summary: 回滚到指定修订
+      operationId: rollbackWikiPage
+      x-rbac: [admin, editor]
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WikiRollbackRequest"
+      responses:
+        "200":
+          description: 回滚创建的新修订
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiPageRevision"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /chat/sessions:
+    post:
+      tags: [Chat]
+      summary: 创建单 KB 会话
+      operationId: createChatSession
+      description: v1 一次会话只关联一个物理 KB。请求体只接受单值 kb_id，提交数组或多个 KB 参数必须返回 422。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatSessionCreateRequest"
+      responses:
+        "201":
+          description: 会话已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSession"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Chat]
+      summary: 会话列表
+      operationId: listChatSessions
+      parameters:
+        - name: kb_id
+          in: query
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 会话分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /chat/sessions/{session_id}/messages:
+    get:
+      tags: [Chat]
+      summary: 消息历史
+      operationId: listChatMessages
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 消息分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessagePage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /chat/sessions/{session_id}/stream:
+    get:
+      tags: [Chat]
+      summary: SSE 流式问答
+      operationId: streamChatAnswer
+      description: 使用会话创建时绑定的单个 kb_id；不得通过 query 临时切换 KB。
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - name: question
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 4000
+      responses:
+        "200":
+          description: |
+            SSE 事件流。事件类型：progress、token、done、error。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                stream:
+                  value: |
+                    event: progress
+                    data: {"stage":"search","message":"正在检索知识库..."}
+
+                    event: token
+                    data: {"content":"根据"}
+
+                    event: done
+                    data: {"message_id":"00000000-0000-0000-0000-000000000000","citations":[],"trace_id":"trace-id"}
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: KB 不可检索
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /chat/sessions/{session_id}:
+    patch:
+      tags: [Chat]
+      summary: 重命名会话
+      operationId: updateChatSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatSessionUpdateRequest"
+      responses:
+        "200":
+          description: 更新后的会话
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSession"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Chat]
+      summary: 删除会话
+      operationId: deleteChatSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: 删除成功
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/audit-logs:
+    get:
+      tags: [Audit]
+      summary: 审计日志
+      operationId: listAuditLogs
+      x-rbac: [admin]
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+            maxLength: 32
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 审计日志分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    KbId:
+      name: kb_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    TagId:
+      name: tag_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    PageId:
+      name: page_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    RevisionId:
+      name: revision_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+  responses:
+    Unauthorized:
+      description: 未认证或 token 无效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: 无权限或非团队成员
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: 资源状态冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: 请求参数或请求体校验失败
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: 外部依赖不可用
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+    DateTime:
+      type: string
+      format: date-time
+    Role:
+      type: string
+      enum: [admin, editor, viewer]
+    KnowledgeBaseType:
+      type: string
+      enum: [document, wiki]
+    KnowledgeBaseStatus:
+      type: string
+      enum: [active, building, disabled, embedding_incompatible]
+    DocumentStatus:
+      type: string
+      enum: [pending, running, completed, failed]
+    TaskStatus:
+      type: string
+      enum: [pending, running, completed, failed]
+    TaskType:
+      type: string
+      enum: [document_process, wiki_ingest, wiki_rebuild]
+    TaskStage:
+      type: string
+      enum:
+        - pending
+        - chunking
+        - embedding
+        - indexing
+        - extracting
+        - citing
+        - taxonomy
+        - summarizing
+        - reducing
+        - postprocessing
+        - completed
+        - failed
+    WikiPageType:
+      type: string
+      enum: [index, source, entity, concept, overview, analysis]
+    EditorType:
+      type: string
+      enum: [agent, manual]
+    ChunkType:
+      type: string
+      enum: [text, wiki_page]
+    LlmProvider:
+      type: string
+      enum: [openai, deepseek]
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              examples: [validation_error]
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            request_id:
+              type: string
+    PageMeta:
+      type: object
+      required: [total, page, page_size]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+    User:
+      type: object
+      required: [id, username, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        username:
+          type: string
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          const: bearer
+        expires_in:
+          type: integer
+    AuthResponse:
+      type: object
+      required: [user, tokens]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        workspace:
+          $ref: "#/components/schemas/Workspace"
+        membership:
+          $ref: "#/components/schemas/WorkspaceMember"
+        tokens:
+          $ref: "#/components/schemas/TokenPair"
+    Workspace:
+      type: object
+      required: [id, name, created_by, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        created_by:
+          $ref: "#/components/schemas/Uuid"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    WorkspaceUpdateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+    WorkspaceMember:
+      type: object
+      required: [id, workspace_id, user, role, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        workspace_id:
+          $ref: "#/components/schemas/Uuid"
+        user:
+          $ref: "#/components/schemas/User"
+        role:
+          $ref: "#/components/schemas/Role"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    MemberCreateRequest:
+      type: object
+      required: [username, role]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+        role:
+          $ref: "#/components/schemas/Role"
+    MemberRoleUpdateRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+    LlmConfigResponse:
+      type: object
+      required: [provider, model, base_url, api_key_configured, api_key_masked, temperature, max_tokens, timeout_seconds, updated_at]
+      properties:
+        provider:
+          $ref: "#/components/schemas/LlmProvider"
+        model:
+          type: string
+        base_url:
+          type: string
+          format: uri
+        api_key_configured:
+          type: boolean
+        api_key_masked:
+          type: string
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 1
+        timeout_seconds:
+          type: integer
+          minimum: 1
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    LlmConfigUpdateRequest:
+      type: object
+      required: [provider, model, base_url, temperature, max_tokens, timeout_seconds]
+      properties:
+        provider:
+          $ref: "#/components/schemas/LlmProvider"
+        model:
+          type: string
+          minLength: 1
+          maxLength: 128
+        base_url:
+          type: string
+          format: uri
+        api_key:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          description: 不传表示保留已有密钥。
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+        max_tokens:
+          type: integer
+          minimum: 1
+          default: 4096
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          default: 60
+    ModelTestResult:
+      type: object
+      required: [ok, code, message, latency_ms]
+      properties:
+        ok:
+          type: boolean
+        code:
+          type: string
+          enum: [ok, network_error, auth_error, model_not_found, timeout, invalid_response]
+        message:
+          type: string
+        latency_ms:
+          type: integer
+          minimum: 0
+    OllamaConfig:
+      type: object
+      required: [base_url, updated_at]
+      properties:
+        base_url:
+          type: string
+          format: uri
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    OllamaConfigUpdateRequest:
+      type: object
+      required: [base_url]
+      properties:
+        base_url:
+          type: string
+          format: uri
+    OllamaModelProbeRequest:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          type: string
+          minLength: 1
+          maxLength: 128
+    OllamaModelProbeResult:
+      type: object
+      required: [tag, digest, capabilities, embedding_dim, usable_for_v1, unusable_reason]
+      properties:
+        tag:
+          type: string
+        digest:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        embedding_dim:
+          type:
+            - integer
+            - "null"
+        usable_for_v1:
+          type: boolean
+        unusable_reason:
+          type:
+            - string
+            - "null"
+          enum:
+            - null
+            - network_error
+            - model_not_found
+            - not_embedding_model
+            - dimension_incompatible
+            - probe_failed
+    ChunkingConfig:
+      type: object
+      required: [chunk_size, chunk_overlap, strategy]
+      properties:
+        chunk_size:
+          type: integer
+          minimum: 128
+          maximum: 4096
+          default: 512
+        chunk_overlap:
+          type: integer
+          minimum: 0
+          maximum: 1024
+          default: 80
+        strategy:
+          type: string
+          enum: [header_aware]
+          default: header_aware
+    WikiConfig:
+      type: object
+      required: [auto_ingest]
+      properties:
+        auto_ingest:
+          type: boolean
+          default: false
+        llm_timeout_seconds:
+          type: integer
+          minimum: 1
+          default: 60
+        llm_max_retries:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 3
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+    SourceKnowledgeBaseCreateRequest:
+      type: object
+      required: [type, name, embedding_model_tag]
+      properties:
+        type:
+          const: document
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 2000
+        embedding_model_tag:
+          type: string
+        chunking_config:
+          $ref: "#/components/schemas/ChunkingConfig"
+    WikiKnowledgeBaseCreateRequest:
+      type: object
+      required: [type, name, embedding_model_tag, source_knowledge_base_ids]
+      properties:
+        type:
+          const: wiki
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 2000
+        embedding_model_tag:
+          type: string
+        source_knowledge_base_ids:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Uuid"
+        wiki_config:
+          $ref: "#/components/schemas/WikiConfig"
+    KnowledgeBaseUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          type: string
+          enum: [active, disabled]
+        chunking_config:
+          $ref: "#/components/schemas/ChunkingConfig"
+        wiki_config:
+          $ref: "#/components/schemas/WikiConfig"
+    KnowledgeBase:
+      type: object
+      required:
+        - id
+        - workspace_id
+        - name
+        - type
+        - status
+        - embedding_provider
+        - embedding_model_tag
+        - embedding_model_digest
+        - embedding_dim
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        workspace_id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: "#/components/schemas/KnowledgeBaseType"
+        status:
+          $ref: "#/components/schemas/KnowledgeBaseStatus"
+        embedding_provider:
+          type: string
+          const: ollama
+        embedding_model_tag:
+          type: string
+        embedding_model_digest:
+          type: string
+        embedding_dim:
+          type: integer
+          const: 1024
+        chunking_config:
+          $ref: "#/components/schemas/ChunkingConfig"
+        wiki_config:
+          $ref: "#/components/schemas/WikiConfig"
+        document_count:
+          type: integer
+          minimum: 0
+        page_count:
+          type: integer
+          minimum: 0
+        bound_source_kbs:
+          type: array
+          items:
+            $ref: "#/components/schemas/KnowledgeBaseSummary"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    KnowledgeBaseSummary:
+      type: object
+      required: [id, name, type, status]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/KnowledgeBaseType"
+        status:
+          $ref: "#/components/schemas/KnowledgeBaseStatus"
+    KnowledgeBasePage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/KnowledgeBase"
+    WikiSourceBindingRequest:
+      type: object
+      required: [source_kb_id]
+      properties:
+        source_kb_id:
+          $ref: "#/components/schemas/Uuid"
+    WikiSourceBinding:
+      type: object
+      required: [id, wiki_kb_id, source_kb_id, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        wiki_kb_id:
+          $ref: "#/components/schemas/Uuid"
+        source_kb_id:
+          $ref: "#/components/schemas/Uuid"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    Tag:
+      type: object
+      required: [id, kb_id, name]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+    TagCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+    Document:
+      type: object
+      required: [id, kb_id, filename, file_hash, file_size, status, chunk_count, created_by, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        filename:
+          type: string
+        file_hash:
+          type: string
+          minLength: 64
+          maxLength: 64
+        file_size:
+          type: integer
+          minimum: 0
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        error_message:
+          type:
+            - string
+            - "null"
+        chunk_count:
+          type: integer
+          minimum: 0
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+        created_by:
+          $ref: "#/components/schemas/Uuid"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    DocumentPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Document"
+    DocumentDetail:
+      allOf:
+        - $ref: "#/components/schemas/Document"
+        - type: object
+          required: [content, chunks]
+          properties:
+            content:
+              type: string
+              description: 原始 Markdown/TXT 文本
+            chunks:
+              type: array
+              items:
+                $ref: "#/components/schemas/Chunk"
+    DocumentUploadResponse:
+      type: object
+      required: [documents, task_ids]
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+        task_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+    Chunk:
+      type: object
+      required: [id, kb_id, content, header_path, seq, start_pos, end_pos, chunk_type, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        document_id:
+          $ref: "#/components/schemas/Uuid"
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        content:
+          type: string
+        header_path:
+          type: array
+          items:
+            type: string
+        seq:
+          type: integer
+          minimum: 0
+        start_pos:
+          type: integer
+          minimum: 0
+        end_pos:
+          type: integer
+          minimum: 0
+        chunk_type:
+          $ref: "#/components/schemas/ChunkType"
+        source_page_id:
+          $ref: "#/components/schemas/Uuid"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    ChunkPreviewRequest:
+      type: object
+      required: [content, content_type]
+      properties:
+        content:
+          type: string
+          minLength: 1
+        content_type:
+          type: string
+          enum: [markdown, text]
+        chunking_config:
+          $ref: "#/components/schemas/ChunkingConfig"
+    ChunkPreviewItem:
+      type: object
+      required: [content, header_path, seq, start_pos, end_pos, char_count]
+      properties:
+        content:
+          type: string
+        header_path:
+          type: array
+          items:
+            type: string
+        seq:
+          type: integer
+        start_pos:
+          type: integer
+        end_pos:
+          type: integer
+        char_count:
+          type: integer
+    TaskAcceptedResponse:
+      type: object
+      required: [task_id]
+      properties:
+        task_id:
+          $ref: "#/components/schemas/Uuid"
+    Task:
+      type: object
+      required: [id, kb_id, task_type, status, stage, progress, payload, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        task_type:
+          $ref: "#/components/schemas/TaskType"
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        stage:
+          $ref: "#/components/schemas/TaskStage"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        payload:
+          type: object
+          additionalProperties: true
+        run_after:
+          $ref: "#/components/schemas/DateTime"
+        dedup_key:
+          type:
+            - string
+            - "null"
+        error:
+          $ref: "#/components/schemas/TaskError"
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    TaskError:
+      type:
+        - object
+        - "null"
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    WikiIngestRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        document_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          description: 不传时摄入所有待处理或已完成且未摄入的绑定 Source 文档。
+    WikiRebuildRequest:
+      type: object
+      required: [confirm]
+      properties:
+        confirm:
+          type: string
+          const: REBUILD
+    WikiPageSummary:
+      type: object
+      required: [id, kb_id, slug, title, page_type, summary, category_path, aliases, source_refs, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        slug:
+          type: string
+        title:
+          type: string
+        page_type:
+          $ref: "#/components/schemas/WikiPageType"
+        summary:
+          type: string
+        category_path:
+          type: array
+          maxItems: 2
+          items:
+            type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        source_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    WikiPage:
+      allOf:
+        - $ref: "#/components/schemas/WikiPageSummary"
+        - type: object
+          required: [content, current_revision_id, created_at]
+          properties:
+            content:
+              type: string
+              description: 当前 Markdown 正文，不含 SUMMARY 行。
+            current_revision_id:
+              $ref: "#/components/schemas/Uuid"
+            manual_edit_warning:
+              type: boolean
+              description: 最新系统版本覆盖过人工编辑时为 true。
+            created_at:
+              $ref: "#/components/schemas/DateTime"
+    WikiPageListResponse:
+      type: object
+      required: [items, tree]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiPageSummary"
+        tree:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiPageTreeNode"
+    WikiPageTreeNode:
+      type: object
+      required: [name, path, pages, children]
+      properties:
+        name:
+          type: string
+        path:
+          type: array
+          items:
+            type: string
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiPageSummary"
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiPageTreeNode"
+    WikiPageUpdateRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: 完整 Markdown；可包含 SUMMARY 行，后端解析 summary 后存储正文。
+        change_summary:
+          type: string
+          maxLength: 512
+    WikiPageRevision:
+      type: object
+      required: [id, page_id, content, editor_type, change_summary, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        page_id:
+          $ref: "#/components/schemas/Uuid"
+        content:
+          type: string
+          description: 完整 Markdown，含 SUMMARY 行。
+        editor_type:
+          $ref: "#/components/schemas/EditorType"
+        editor_id:
+          $ref: "#/components/schemas/Uuid"
+        change_summary:
+          type: string
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    WikiRevisionPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/WikiPageRevision"
+    WikiRevisionDiff:
+      type: object
+      required: [from_revision_id, to_revision_id, lines]
+      properties:
+        from_revision_id:
+          $ref: "#/components/schemas/Uuid"
+        to_revision_id:
+          $ref: "#/components/schemas/Uuid"
+        lines:
+          type: array
+          items:
+            type: object
+            required: [type, content]
+            properties:
+              type:
+                type: string
+                enum: [context, added, removed]
+              content:
+                type: string
+    WikiRollbackRequest:
+      type: object
+      required: [revision_id]
+      properties:
+        revision_id:
+          $ref: "#/components/schemas/Uuid"
+        change_summary:
+          type: string
+          maxLength: 512
+    WikiGraph:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiGraphNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiGraphEdge"
+    WikiGraphNode:
+      type: object
+      required: [id, name, slug, entity_type]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        slug:
+          type: string
+        entity_type:
+          type: string
+        wiki_page_id:
+          $ref: "#/components/schemas/Uuid"
+    WikiGraphEdge:
+      type: object
+      required: [id, source_entity_id, target_entity_id, relation_type]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        source_entity_id:
+          $ref: "#/components/schemas/Uuid"
+        target_entity_id:
+          $ref: "#/components/schemas/Uuid"
+        relation_type:
+          type: string
+        source_chunk_id:
+          $ref: "#/components/schemas/Uuid"
+    ChatSessionCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [kb_id]
+      properties:
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        title:
+          type: string
+          maxLength: 256
+    ChatSessionUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+    ChatSession:
+      type: object
+      required: [id, workspace_id, user_id, kb_id, title, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        workspace_id:
+          $ref: "#/components/schemas/Uuid"
+        user_id:
+          $ref: "#/components/schemas/Uuid"
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        title:
+          type: string
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+        updated_at:
+          $ref: "#/components/schemas/DateTime"
+    ChatSessionPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatSession"
+    ChatMessage:
+      type: object
+      required: [id, session_id, role, content, citations, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        session_id:
+          $ref: "#/components/schemas/Uuid"
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+        trace_id:
+          type:
+            - string
+            - "null"
+        token_usage:
+          type: object
+          additionalProperties: true
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    ChatMessagePage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatMessage"
+    Citation:
+      type: object
+      required: [id, source_type, kb_id, snippet]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        source_type:
+          type: string
+          enum: [document, wiki_page]
+        kb_id:
+          $ref: "#/components/schemas/Uuid"
+        document_id:
+          $ref: "#/components/schemas/Uuid"
+        wiki_page_id:
+          $ref: "#/components/schemas/Uuid"
+        chunk_id:
+          $ref: "#/components/schemas/Uuid"
+        filename:
+          type: string
+        title:
+          type: string
+        header_path:
+          type: array
+          items:
+            type: string
+        snippet:
+          type: string
+    AuditLog:
+      type: object
+      required: [id, workspace_id, action, resource_type, details, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        workspace_id:
+          $ref: "#/components/schemas/Uuid"
+        user_id:
+          $ref: "#/components/schemas/Uuid"
+        action:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          $ref: "#/components/schemas/Uuid"
+        details:
+          type: object
+          additionalProperties: true
+        created_at:
+          $ref: "#/components/schemas/DateTime"
+    AuditLogPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/AuditLog"
