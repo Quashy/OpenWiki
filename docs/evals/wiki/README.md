@@ -107,3 +107,27 @@ expectations:
 首批 10 个 case 覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、低价值噪音、引用约束、死链约束、图谱自链、空证据不编造。
 
 这些 case 只定义评估输入和期望，不直接调用真实 LLM。真实 DeepSeek 评估由后续本地 eval runner 执行，不进入 CI 默认路径。
+
+## 本地评估命令
+
+先只校验数据集结构：
+
+```powershell
+$env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --dry-run
+```
+
+运行全部 case，会调用真实 DeepSeek、Ollama embedding 和当前数据库：
+
+```powershell
+$env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality
+```
+
+运行前需确保当前环境能读取 `DEEPSEEK_API_KEY`，并能访问 `DATABASE_URL` 与 `OLLAMA_BASE_URL`。宿主机运行通常需要把数据库和 Ollama 地址配置为宿主机可访问地址；容器内运行则使用 docker compose 注入的服务地址。
+
+只运行单个 case，适合调 prompt 时快速复现：
+
+```powershell
+$env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_merge_001
+```
+
+评估报告默认写入 `reports/wiki-evals/`，包含同名 JSON 和 Markdown。报告记录 `pass_rate`、`must_have_page_hit_rate`、`forbidden_page_violation_count`、`alias_hit_rate`、`citation_requirement_pass_rate`、`relation_hit_rate`、`dead_link_count`、`self_loop_count`、`forbidden_content_count`、`required_term_hit_rate`、每个 case 的任务信息、trace_id、失败断言和关键页面摘要。

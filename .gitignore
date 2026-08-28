@@ -12,6 +12,7 @@ dist/
 coverage/
 *.tsbuildinfo
 logs/
+reports/
 
 backend/.venv/
 frontend/node_modules/
