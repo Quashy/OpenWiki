@@ -241,6 +241,12 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality
 $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --run-id "wiki_prompt_v0_1_baseline_20260828" --ollama-base-url "http://localhost:11434" --embedding-model "bge-m3:latest"
 ```
 
+如果本机 Langfuse 导出持续超时，可临时禁用外部 trace 导出后重跑质量报告；这只影响报告中的 `trace_id`，不影响 Wiki 生成与结构化断言：
+
+```powershell
+$env:PYTHONPATH="backend"; $env:LANGFUSE_HOST=""; $env:LANGFUSE_PUBLIC_KEY=""; $env:LANGFUSE_SECRET_KEY=""; python -m app.tools.eval_wiki_quality --run-id "wiki_prompt_v0_1_dedup_20260828" --ollama-base-url "http://localhost:11434" --embedding-model "bge-m3:latest"
+```
+
 只运行单个 case，适合调 prompt 时快速复现：
 
 ```powershell
@@ -257,8 +263,8 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_me
 
 报告文件：
 
-- `reports/wiki-evals/wiki-eval-wiki_prompt_v0_1_baseline_20260828.json`
-- `reports/wiki-evals/wiki-eval-wiki_prompt_v0_1_baseline_20260828.md`
+- `reports/wiki-evals/wiki_prompt_v0_1_baseline_20260828/wiki-eval-wiki_prompt_v0_1_baseline_20260828.json`
+- `reports/wiki-evals/wiki_prompt_v0_1_baseline_20260828/wiki-eval-wiki_prompt_v0_1_baseline_20260828.md`
 
 本次 10 个 case 均执行完成并生成 trace_id，无 case execution error。当前基准质量结果如下：
 
@@ -276,3 +282,29 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_me
 | `required_term_hit_rate` | 0.1364 |
 
 该结果是首个可比较 prompt 质量基线，不代表 M4 质量门禁通过。后续应先推进 Dedup pass，再用同一批 Micro case 与本基线对比。
+
+## Dedup pass Micro Eval 对比
+
+2026-08-28 在 Extract 之后、Citation 之前接入独立 Dedup pass，并用同一批 10 个 Micro case 重跑，run id 为 `wiki_prompt_v0_1_dedup_20260828`。
+
+报告文件：
+
+- `reports/wiki-evals/wiki_prompt_v0_1_dedup_20260828/wiki-eval-wiki_prompt_v0_1_dedup_20260828.json`
+- `reports/wiki-evals/wiki_prompt_v0_1_dedup_20260828/wiki-eval-wiki_prompt_v0_1_dedup_20260828.md`
+
+本次 10 个 case 均执行完成，无 case execution error。由于本地 Langfuse 导出持续超时，本次对比 run 临时禁用了外部 trace 导出，报告中的 `trace_id` 为空；代码路径仍在每次 LLM 调用 span metadata 中写入 `prompt_family`、`prompt_stage`、`prompt_version`。
+
+| 指标 | 基准 | Dedup 后 | 变化 |
+|---|---:|---:|---:|
+| `pass_rate` | 0.0 | 0.0 | 0.0 |
+| `must_have_page_hit_rate` | 0.3333 | 0.3333 | 0.0 |
+| `forbidden_page_violation_count` | 1 | 0 | -1 |
+| `alias_hit_rate` | 0.4138 | 0.4483 | +0.0345 |
+| `citation_requirement_pass_rate` | 0.3571 | 0.3571 | 0.0 |
+| `relation_hit_rate` | 0.0 | 0.0 | 0.0 |
+| `dead_link_count` | 0 | 0 | 0 |
+| `self_loop_count` | 0 | 0 | 0 |
+| `forbidden_content_count` | 7 | 7 | 0 |
+| `required_term_hit_rate` | 0.1364 | 0.2727 | +0.1363 |
+
+结论：Dedup pass 对重复/噪音页面有正向效果，且没有引入死链、自链或相似但不同条目的错误合并；但整体质量门禁仍未通过，主要短板仍在 canonical page 抽取稳定性、Citation 覆盖和 Reduce 关系合成。本轮不继续推进这些 prompt 强化项。

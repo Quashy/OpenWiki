@@ -7,6 +7,7 @@ from app.services.wiki.prompts import (
     PROMPT_VERSION,
     WikiPrompt,
     build_citation_prompt,
+    build_dedup_prompt,
     build_extract_prompt,
     build_overview_prompt,
     build_reduce_prompt,
@@ -65,6 +66,7 @@ def sample_prompts() -> list[WikiPrompt]:
     }
     return [
         build_extract_prompt(document_id="doc-1", existing_slugs=[], chunks=[chunk]),
+        build_dedup_prompt(new_candidates=[candidate], existing_pages=[]),
         build_citation_prompt(candidates=[candidate], chunks=[chunk]),
         build_taxonomy_prompt(candidates=[candidate]),
         build_source_summary_prompt(document_id="doc-1", allowed_links=[candidate], chunks=[chunk]),
@@ -75,7 +77,7 @@ def sample_prompts() -> list[WikiPrompt]:
 
 def test_wiki_prompt_builders_render_v01_metadata_and_no_placeholders() -> None:
     prompts = sample_prompts()
-    stages = ["extract", "citation", "taxonomy", "source_summary", "reduce", "overview"]
+    stages = ["extract", "dedup", "citation", "taxonomy", "source_summary", "reduce", "overview"]
 
     assert [prompt.metadata["prompt_stage"] for prompt in prompts] == stages
     for prompt in prompts:
@@ -89,12 +91,16 @@ def test_wiki_prompt_builders_render_v01_metadata_and_no_placeholders() -> None:
 
 
 def test_wiki_prompt_builders_keep_required_output_contracts() -> None:
-    extract, citation, taxonomy, source_summary, reduce, overview = sample_prompts()
+    extract, dedup, citation, taxonomy, source_summary, reduce, overview = sample_prompts()
 
     assert "<stage>extract</stage>" in extract.user
     assert '"candidates"' in extract.user
     assert "entity/..." in extract.user
     assert "concept/..." in extract.user
+
+    assert "<stage>dedup</stage>" in dedup.user
+    assert '"merges"' in dedup.user
+    assert "related != same" in dedup.user
 
     assert "<stage>citation</stage>" in citation.user
     assert '"citations"' in citation.user

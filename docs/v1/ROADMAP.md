@@ -94,7 +94,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；`wiki_prompt_v0.1` 已接入 6 个现有阶段并记录 prompt version trace；其余为 Micro Eval 基准报告、Dedup、Scenario Eval runner、质量报告 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；`wiki_prompt_v0.1` 已接入 6 个现有阶段并记录 prompt version trace；Micro Eval 基准报告与 Dedup 对比已完成；其余为 Scenario Eval runner、质量报告 |
 | M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | 复用 Wiki eval questions、SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
@@ -344,7 +344,9 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - Prompt 接入：`llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 已抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 定义的 `wiki_prompt_v0.1`。
 - Prompt 观测：每个 builder 返回 `prompt_family=wiki_ingest`、`prompt_stage`、`prompt_version=wiki_prompt_v0.1`，`ObservedLLMProvider` 已在 Langfuse LLM span metadata 中记录这些字段。
 - Prompt 测试：新增 prompt builder 单测覆盖阶段名、版本号、输出格式关键约束、渲染后无 `{{...}}` 占位符残留，以及 LLM span metadata 记录 prompt version；后端全量测试 `PYTHONPATH=backend python -m pytest backend/tests` 通过，29 passed。
-- Micro Eval 基准：使用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest`、`wiki_prompt_v0.1` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki-eval-wiki_prompt_v0_1_baseline_20260828.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。基准结果：`pass_rate=0.0`、`must_have_page_hit_rate=0.3333`、`alias_hit_rate=0.4138`、`citation_requirement_pass_rate=0.3571`、`relation_hit_rate=0.0`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.1364`。本结果作为后续 Dedup 与 prompt 强化对比基线，不在本轮调 prompt。
+- Micro Eval 基准：使用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest`、`wiki_prompt_v0.1` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki_prompt_v0_1_baseline_20260828/wiki-eval-wiki_prompt_v0_1_baseline_20260828.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。基准结果：`pass_rate=0.0`、`must_have_page_hit_rate=0.3333`、`alias_hit_rate=0.4138`、`citation_requirement_pass_rate=0.3571`、`relation_hit_rate=0.0`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.1364`。本结果作为后续 Dedup 与 prompt 强化对比基线，不在本轮调 prompt。
+- Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，接入 `docs/prompt/prompt.md` 的 `dedup` 模板与 `wiki_prompt_v0.1` prompt metadata；确定性规则只合并高置信同义、同编号或同既有页面条目，并拒绝 `related != same`、跨类型合并和相关但不同条目。
+- Dedup 对比：使用同一批 10 个 Micro case 重跑，报告写入 `reports/wiki-evals/wiki_prompt_v0_1_dedup_20260828/wiki-eval-wiki_prompt_v0_1_dedup_20260828.{json,md}`。对比基准：`pass_rate` 仍为 `0.0`，`must_have_page_hit_rate` 仍为 `0.3333`，`forbidden_page_violation_count` 从 `1` 降为 `0`，`alias_hit_rate` 从 `0.4138` 升至 `0.4483`，`citation_requirement_pass_rate` 仍为 `0.3571`，`relation_hit_rate` 仍为 `0.0`，`dead_link_count` 与 `self_loop_count` 仍为 `0`，`forbidden_content_count` 仍为 `7`，`required_term_hit_rate` 从 `0.1364` 升至 `0.2727`。本轮未推进 Citation、Reduce 或 Extract prompt 强化。
 
 **推荐实施顺序**
 
@@ -356,7 +358,7 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 6. Prompt 结构测试：覆盖阶段名、版本号、输出 schema、关键硬约束，以及渲染后不残留 `{{...}}` 占位符。
 7. Prompt 观测：Langfuse trace 支持记录 `prompt_family`、`prompt_stage`、`prompt_version`，并带上 `case_id` / `scenario_id`。
 8. 已完成 Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case，以 `wiki_prompt_v0.1` 的结果作为首个 prompt 质量基准报告。
-9. Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，使用 `related != same` 规则；接入后重新跑 Micro Eval，与第 8 步基准比较。
+9. 已完成 Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，使用 `related != same` 规则；已重新跑 Micro Eval，并与第 8 步基准比较。
 10. Scenario Eval runner：扩展 runner 支持 `scenarios/`，用于验证多文档、多实体、多关系下的真实复杂度。
 11. Prompt 强化：基于 Micro Eval 与 Scenario Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Source Summary、Overview。
 12. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。

@@ -35,6 +35,7 @@ from app.services.wiki.page_service import (
 from app.services.wiki.prompts import (
     WikiPrompt,
     build_citation_prompt,
+    build_dedup_prompt,
     build_extract_prompt,
     build_overview_prompt,
     build_reduce_prompt,
@@ -215,6 +216,15 @@ async def process_wiki_ingest_job(
                 documents=documents,
                 chunks_by_doc=chunks_by_doc,
                 existing_slugs=existing_slugs,
+                config=config,
+            )
+
+        with trace.span(name="dedup", metadata={"candidate_count": len(candidates)}):
+            candidates = await deduplicate_candidates(
+                session,
+                llm,
+                kb_id=kb.id,
+                candidates=candidates,
                 config=config,
             )
         await update_task_state(session, task, status="running", stage="citing", progress=25)
@@ -446,6 +456,36 @@ async def extract_candidates(
     if not candidates:
         raise ApiError("wiki_no_candidates", "未能从文档中抽取 Wiki 条目", 409)
     return list(candidates.values())
+
+
+async def deduplicate_candidates(
+    session: AsyncSession,
+    llm: LLMProvider | None,
+    *,
+    kb_id: str,
+    candidates: list[WikiCandidate],
+    config: WikiConfig,
+) -> list[WikiCandidate]:
+    if not candidates:
+        return []
+
+    existing_pages = list(
+        (
+            await session.execute(
+                select(WikiPage)
+                .where(WikiPage.kb_id == kb_id, WikiPage.page_type.in_(["entity", "concept"]))
+                .order_by(WikiPage.slug)
+            )
+        ).scalars()
+    )
+    deterministic = deterministic_dedup_merges(candidates, existing_pages)
+    llm_merges = await llm_dedup(llm, candidates=candidates, existing_pages=existing_pages, config=config)
+    merged = merge_candidate_slugs(
+        candidates=candidates,
+        existing_pages=existing_pages,
+        merges={**deterministic, **llm_merges},
+    )
+    return merged[:MAX_CANDIDATES]
 
 
 async def cite_candidates(
@@ -770,6 +810,35 @@ async def llm_citation(
     return result
 
 
+async def llm_dedup(
+    llm: LLMProvider | None,
+    *,
+    candidates: list[WikiCandidate],
+    existing_pages: list[WikiPage],
+    config: WikiConfig,
+) -> dict[str, str]:
+    prompt = build_dedup_prompt(
+        new_candidates=[candidate_payload(item) for item in candidates],
+        existing_pages=[
+            existing_page_payload(page)
+            for page in existing_pages
+        ],
+    )
+    payload = await llm_json(
+        llm,
+        prompt=prompt,
+        config=config,
+    )
+    raw = payload.get("merges") if payload else None
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        normalize_slug(str(source)): normalize_slug(str(target))
+        for source, target in raw.items()
+        if normalize_slug(str(source)) and normalize_slug(str(target))
+    }
+
+
 async def llm_taxonomy(
     llm: LLMProvider | None,
     *,
@@ -894,6 +963,286 @@ def candidate_payload(candidate: WikiCandidate) -> dict[str, Any]:
         "aliases": candidate.aliases,
         "description": candidate.description,
     }
+
+
+def existing_page_payload(page: WikiPage) -> dict[str, Any]:
+    return {
+        "name": page.title,
+        "slug": page.slug,
+        "page_type": page.page_type,
+        "aliases": page.aliases or [],
+        "description": page.summary,
+    }
+
+
+def deterministic_dedup_merges(
+    candidates: list[WikiCandidate],
+    existing_pages: list[WikiPage],
+) -> dict[str, str]:
+    merges: dict[str, str] = {}
+    targets: list[WikiCandidate | WikiPage] = [*existing_pages, *candidates]
+    for candidate in candidates:
+        for target in targets:
+            target_slug = target.slug
+            if target_slug == candidate.slug:
+                continue
+            if target_page_type(target) != candidate.page_type:
+                continue
+            if not high_confidence_same(candidate, target):
+                continue
+            merges[candidate.slug] = better_dedup_target(candidate, target)
+            break
+    return {source: target for source, target in merges.items() if source != target}
+
+
+def merge_candidate_slugs(
+    *,
+    candidates: list[WikiCandidate],
+    existing_pages: list[WikiPage],
+    merges: dict[str, str],
+) -> list[WikiCandidate]:
+    candidate_by_slug = {candidate.slug: candidate for candidate in candidates}
+    page_by_slug = {page.slug: page for page in existing_pages}
+    page_type_by_slug: dict[str, str] = {
+        **{slug: candidate.page_type for slug, candidate in candidate_by_slug.items()},
+        **{slug: page.page_type for slug, page in page_by_slug.items()},
+    }
+    parent = {slug: slug for slug in candidate_by_slug | page_by_slug}
+    preferred_targets: dict[str, int] = {}
+
+    def find(slug: str) -> str:
+        parent.setdefault(slug, slug)
+        if parent[slug] != slug:
+            parent[slug] = find(parent[slug])
+        return parent[slug]
+
+    def union(source: str, target: str) -> None:
+        source_root = find(source)
+        target_root = find(target)
+        if source_root != target_root:
+            parent[source_root] = target_root
+        preferred_targets[target] = preferred_targets.get(target, 0) + 1
+
+    for source, target in merges.items():
+        source_slug = normalize_slug(source)
+        target_slug = normalize_slug(target)
+        if source_slug == target_slug:
+            continue
+        if source_slug not in candidate_by_slug:
+            continue
+        if target_slug not in page_type_by_slug:
+            continue
+        if page_type_by_slug[source_slug] != page_type_by_slug[target_slug]:
+            continue
+        union(source_slug, target_slug)
+
+    groups: dict[str, list[WikiCandidate]] = {}
+    for candidate in candidates:
+        groups.setdefault(find(candidate.slug), []).append(candidate)
+
+    merged: list[WikiCandidate] = []
+    seen_slugs: set[str] = set()
+    for root, group in groups.items():
+        candidate = merge_candidate_group(
+            group,
+            existing_page=page_by_slug.get(root),
+            preferred_targets=preferred_targets,
+        )
+        if candidate.slug in seen_slugs:
+            candidate = merge_candidate_group(
+                [candidate, *[item for item in merged if item.slug == candidate.slug]],
+                existing_page=page_by_slug.get(candidate.slug),
+                preferred_targets=preferred_targets,
+            )
+            merged = [item for item in merged if item.slug != candidate.slug]
+        seen_slugs.add(candidate.slug)
+        merged.append(candidate)
+    return merged
+
+
+def merge_candidate_group(
+    group: list[WikiCandidate],
+    *,
+    existing_page: WikiPage | None,
+    preferred_targets: dict[str, int],
+) -> WikiCandidate:
+    canonical = canonical_candidate(group, existing_page=existing_page, preferred_targets=preferred_targets)
+    aliases = sorted(
+        {
+            canonical.name,
+            *(existing_page.aliases if existing_page is not None else []),
+            *[item for candidate in group for item in candidate.aliases],
+            *[candidate.name for candidate in group],
+        }
+    )
+    source_refs = sorted(
+        {
+            *(existing_page.source_refs if existing_page is not None else []),
+            *[ref for candidate in group for ref in candidate.source_refs],
+        }
+    )
+    description = richest_text(
+        [existing_page.summary if existing_page is not None else "", *[candidate.description for candidate in group]]
+    )
+    return WikiCandidate(
+        name=canonical.name,
+        slug=canonical.slug,
+        page_type=canonical.page_type,
+        entity_type=canonical.entity_type,
+        aliases=aliases,
+        description=description or canonical.description,
+        source_refs=source_refs,
+    )
+
+
+def canonical_candidate(
+    group: list[WikiCandidate],
+    *,
+    existing_page: WikiPage | None,
+    preferred_targets: dict[str, int],
+) -> WikiCandidate:
+    if existing_page is not None:
+        reference = group[0]
+        return WikiCandidate(
+            name=existing_page.title,
+            slug=existing_page.slug,
+            page_type=existing_page.page_type,
+            entity_type=reference.entity_type,
+            aliases=existing_page.aliases or [existing_page.title],
+            description=existing_page.summary or reference.description,
+            source_refs=existing_page.source_refs or [],
+        )
+
+    preferred = sorted(group, key=lambda item: (-preferred_targets.get(item.slug, 0), canonical_score(item)))
+    best = preferred[0]
+    derived_slug = derived_canonical_slug(group, best)
+    if derived_slug == best.slug:
+        return best
+    return WikiCandidate(
+        name=best.name,
+        slug=derived_slug,
+        page_type=best.page_type,
+        entity_type=best.entity_type,
+        aliases=best.aliases,
+        description=best.description,
+        source_refs=best.source_refs,
+    )
+
+
+def derived_canonical_slug(group: list[WikiCandidate], best: WikiCandidate) -> str:
+    page_type = best.page_type
+    codes = sorted({code.lower() for candidate in group for code in identifier_tokens(candidate)})
+    if len(codes) == 1:
+        return f"{page_type}/{codes[0]}"
+    if slug_tail_is_degenerate(best.slug):
+        return f"{page_type}/{slug_tail(best.name)}"
+    tokens = slug_tokens(best.slug)
+    if tokens and tokens[-1] in GENERIC_SUFFIX_TOKENS and len(tokens) > 1:
+        return f"{page_type}/{'-'.join(tokens[:-1])}"
+    return best.slug
+
+
+GENERIC_SUFFIX_TOKENS = {
+    "booking",
+    "checklist",
+    "classroom",
+    "instructions",
+    "notice",
+    "plan",
+    "recipe",
+    "record",
+    "template",
+    "train",
+}
+
+
+DEGENERATE_SLUG_TAILS = {"concept", "document", "entity", "item", "page", "unknown", "untitled"}
+
+
+def canonical_score(candidate: WikiCandidate) -> tuple[int, int, int, str]:
+    tokens = slug_tokens(candidate.slug)
+    alias_match_bonus = -3 if slug_tail_matches_surface(candidate.slug, [candidate.name, *candidate.aliases]) else 0
+    degenerate_penalty = 20 if slug_tail_is_degenerate(candidate.slug) else 0
+    suffix_penalty = 3 if tokens and tokens[-1] in GENERIC_SUFFIX_TOKENS and len(tokens) > 1 else 0
+    short_abbreviation_penalty = 5 if is_short_ascii_name(candidate.name) and len(tokens) <= 2 else 0
+    return (
+        degenerate_penalty + suffix_penalty + short_abbreviation_penalty + alias_match_bonus,
+        len(tokens),
+        len(candidate.slug),
+        candidate.slug,
+    )
+
+
+def high_confidence_same(source: WikiCandidate, target: WikiCandidate | WikiPage) -> bool:
+    source_surfaces = normalized_surfaces(source.name, source.aliases, source.slug)
+    target_surfaces = normalized_surfaces(target.title if isinstance(target, WikiPage) else target.name, target.aliases or [], target.slug)
+    if source_surfaces & target_surfaces:
+        return True
+
+    source_codes = set(identifier_tokens(source))
+    target_codes = set(identifier_tokens(target))
+    if source_codes and source_codes == target_codes:
+        return True
+
+    source_tokens = set(slug_tokens(source.slug))
+    target_tokens = set(slug_tokens(target.slug))
+    if not source_tokens or not target_tokens:
+        return False
+    smaller, larger = sorted([source_tokens, target_tokens], key=len)
+    return len(smaller) >= 2 and smaller.issubset(larger)
+
+
+def better_dedup_target(source: WikiCandidate, target: WikiCandidate | WikiPage) -> str:
+    if isinstance(target, WikiPage):
+        return target.slug
+    return min([source, target], key=canonical_score).slug
+
+
+def target_page_type(target: WikiCandidate | WikiPage) -> str:
+    return target.page_type
+
+
+def normalized_surfaces(name: str, aliases: list[str], slug: str) -> set[str]:
+    return {
+        surface
+        for surface in [normalize_surface(name), *[normalize_surface(alias) for alias in aliases], normalize_surface(slug.rsplit("/", 1)[-1])]
+        if surface
+    }
+
+
+def normalize_surface(value: str) -> str:
+    return re.sub(r"[\W_]+", "", value, flags=re.UNICODE).casefold()
+
+
+def identifier_tokens(item: WikiCandidate | WikiPage) -> list[str]:
+    name = item.title if isinstance(item, WikiPage) else item.name
+    aliases = item.aliases or []
+    text = " ".join([name, item.slug, *aliases])
+    return [match.group(0) for match in re.finditer(r"\b[A-Z]{1,8}-?(?:\d[\dA-Z-]{2,})\b", text)]
+
+
+def slug_tokens(slug: str) -> list[str]:
+    return [token for token in slug.rsplit("/", 1)[-1].split("-") if token]
+
+
+def slug_tail_is_degenerate(slug: str) -> bool:
+    tail = slug.rsplit("/", 1)[-1]
+    return tail in DEGENERATE_SLUG_TAILS
+
+
+def slug_tail_matches_surface(slug: str, surfaces: list[str]) -> bool:
+    tail = slug.rsplit("/", 1)[-1]
+    return any(slug_tail(surface) == tail for surface in surfaces if surface and surface.isascii())
+
+
+def is_short_ascii_name(name: str) -> bool:
+    compact = name.replace(" ", "").replace("-", "")
+    return bool(compact) and compact.isascii() and len(compact) <= 8
+
+
+def richest_text(values: list[str]) -> str:
+    candidates = [value.strip() for value in values if value and value.strip()]
+    return max(candidates, key=len) if candidates else ""
 
 
 def normalize_candidate(item: dict[str, Any], document_id: str) -> WikiCandidate:

@@ -154,6 +154,69 @@ JSON 格式：
     )
 
 
+def build_dedup_prompt(
+    *,
+    new_candidates: list[dict[str, Any]],
+    existing_pages: list[dict[str, Any]],
+) -> WikiPrompt:
+    return WikiPrompt(
+        system="你是严格的 Wiki 去重判定器。只输出合法 JSON，不要输出解释。\n只在高置信确认两个条目是同一实体或同一概念时合并。",
+        user=f"""<stage>dedup</stage>
+
+<new_candidates_json>
+{_json(new_candidates)}
+</new_candidates_json>
+
+<existing_pages_json>
+{_json(existing_pages)}
+</existing_pages_json>
+
+<instructions>
+输出 JSON 对象，根字段只能包含 "merges"。
+
+"merges" 是 map：
+- key 是新 candidate 的 slug。
+- value 是应合并到的既有页面或同批候选项 slug。
+
+硬约束：
+- 只能合并到 existing_pages_json 或 new_candidates_json 中存在的 slug。
+- entity 只能合并 entity，concept 只能合并 concept。
+- 不得发明 slug。
+- 不得因为相关、同领域、同文件、名称部分重合而合并。
+- 不得把咖啡店与烘焙教室、计划与记录模板、产品与版本、地点与活动合并。
+
+允许合并：
+- 官方简称与全称。
+- 中英文译名。
+- 大小写、空格、连字符等轻微写法差异。
+- 同一对象的常见别称。
+- 同一生活事项或同一编号对象的不同命名，例如车次名与车次编号。
+
+禁止合并：
+- 竞品或同类产品。
+- 不同版本。
+- 上下位概念。
+- 同一领域的不同证件、政策、流程、表单、标准。
+- 相关但不同的组织、项目、地点、事件、计划、模板或课程。
+
+核心原则：related != same。不确定时不要合并。
+
+JSON 格式：
+- 只输出 JSON。
+- 无合并时返回 merges 为空对象的 JSON。
+</instructions>
+
+<required_json>
+{{
+  "merges": {{
+    "entity/new-slug": "entity/existing-slug"
+  }}
+}}
+</required_json>""",
+        metadata=_metadata("dedup"),
+    )
+
+
 def build_taxonomy_prompt(
     *,
     candidates: list[dict[str, Any]],
