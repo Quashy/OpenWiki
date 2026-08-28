@@ -18,6 +18,39 @@ documents:
   - path: documents/running-template.md
     title: 晨跑记录模板
 
+questions:
+  - id: q_plan_uses_template
+    question: 晨跑计划和晨跑记录模板是什么关系？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 晨跑计划使用晨跑记录模板
+      - 模板不是训练计划本身
+    expected_citation_terms:
+      - 每次跑步后填写晨跑记录模板
+      - 不是训练计划本身
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 晨跑计划依赖晨跑计划
+  - id: q_running_goal
+    question: 晨跑计划的 6 周目标是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 单次跑步距离稳定到 5 公里
+    expected_citation_terms:
+      - 6 周内
+      - 5 公里
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 半程马拉松
+
 expectations:
   must_have_pages:
     - slug: entity/morning-run-plan

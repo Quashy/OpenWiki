@@ -16,6 +16,39 @@ documents:
   - path: documents/renovation-list.md
     title: 阳台装修清单
 
+questions:
+  - id: q_floor_tile_spec
+    question: 阳台装修使用的防滑地砖规格和数量是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 300x300mm
+      - 12 箱
+    expected_citation_terms:
+      - 防滑地砖
+      - 12 箱
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 螺丝
+  - id: q_masking_tape_spec_unknown
+    question: 美纹纸的品牌和数量是什么？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms:
+      - 没有品牌、规格、用途或数量说明
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 3 卷
+      - 得力
+
 expectations:
   must_have_pages:
     - slug: entity/balcony-renovation

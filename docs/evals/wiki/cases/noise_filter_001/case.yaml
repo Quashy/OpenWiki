@@ -16,6 +16,39 @@ documents:
   - path: documents/community-template.md
     title: 社区活动模板
 
+questions:
+  - id: q_yard_sale_basic_info
+    question: 秋季跳蚤市场的时间和地点是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 2026-10-05 09:00-12:00
+      - 桂花社区广场
+    expected_citation_terms:
+      - 秋季跳蚤市场
+      - 桂花社区广场
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - TBD
+  - id: q_contact_person_unknown
+    question: 秋季跳蚤市场的联系人是谁？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms:
+      - 请填写你的姓名
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 请填写你的姓名是联系人
+      - TBD
+
 expectations:
   must_have_pages:
     - slug: entity/autumn-yard-sale

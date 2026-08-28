@@ -18,6 +18,39 @@ documents:
   - path: documents/dinner-update.md
     title: 聚餐时间更新
 
+questions:
+  - id: q_dinner_time_change
+    question: 周末聚餐的时间发生了什么变化？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 原计划周六 18:00
+      - 调整为周日 12:00
+      - 周六 18:00 的安排作废
+    expected_citation_terms:
+      - 周六 18:00
+      - 周日 12:00
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 两个时间都有效
+  - id: q_dinner_location
+    question: 聚餐地点有没有变化？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 地点仍为晨光咖啡馆二楼包间
+    expected_citation_terms:
+      - 地点仍为晨光咖啡馆二楼包间
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 地点已取消
+
 expectations:
   must_have_pages:
     - slug: entity/weekend-dinner

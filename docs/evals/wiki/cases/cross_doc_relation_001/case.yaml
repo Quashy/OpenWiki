@@ -20,6 +20,38 @@ documents:
   - path: documents/itinerary.md
     title: 游玩安排
 
+questions:
+  - id: q_trip_hotel_and_train
+    question: 杭州家庭旅行的住宿和去程车次分别是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 西湖花园酒店
+      - G7391
+    expected_citation_terms:
+      - 西湖花园酒店
+      - G7391
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 机票
+  - id: q_return_train_confirmed
+    question: 杭州家庭旅行的返程车次已经确认了吗？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 返程车票还没有购买
+    expected_citation_terms:
+      - 返程车票还没有购买
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 已确认
+
 expectations:
   must_have_pages:
     - slug: entity/hangzhou-family-trip

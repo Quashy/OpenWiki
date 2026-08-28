@@ -18,6 +18,38 @@ documents:
   - path: documents/baking-class.md
     title: 晨光烘焙教室介绍
 
+questions:
+  - id: q_cafe_and_class_same_business
+    question: 晨光咖啡馆和晨光烘焙教室是不是同一个业务？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 两个独立业务
+      - 收费、预约和课程安排都不同
+    expected_citation_terms:
+      - 独立业务
+      - 不提供烘焙课报名
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 同一个业务
+  - id: q_baking_class_signup_at_cafe
+    question: 可以在晨光咖啡馆报名烘焙课吗？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 不提供烘焙课报名
+    expected_citation_terms:
+      - 不提供烘焙课报名
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 可以报名
+
 expectations:
   must_have_pages:
     - slug: entity/morning-light-cafe

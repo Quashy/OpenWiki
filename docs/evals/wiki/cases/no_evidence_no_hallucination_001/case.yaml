@@ -16,6 +16,42 @@ documents:
   - path: documents/pet-boarding-note.md
     title: 宠物寄养说明
 
+questions:
+  - id: q_pet_boarding_requirements
+    question: 宠物寄养需要主人自带哪些东西？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 牵引绳
+      - 日常狗粮
+      - 常用药
+    expected_citation_terms:
+      - 自带牵引绳
+      - 日常狗粮
+      - 常用药
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 疫苗品牌
+  - id: q_pet_boarding_price_unknown
+    question: 宠物寄养每晚多少钱，保险怎么赔付？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms:
+      - 没有提供寄养价格、疫苗品牌、保险条款或赔付规则
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 每晚 80 元
+      - 元/天
+      - 保险赔付
+
 expectations:
   must_have_pages:
     - slug: entity/pet-boarding

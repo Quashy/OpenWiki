@@ -37,6 +37,22 @@ documents:
   - path: documents/example.md
     title: 示例文档
 
+questions:
+  - id: q_example_fact
+    question: 示例文档里确认了什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 示例
+    expected_citation_terms:
+      - 示例
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 无法确认
+
 expectations:
   must_have_pages:
     - slug: entity/example
@@ -72,6 +88,19 @@ expectations:
 - `must_not_contain`：任何生成页面正文都不得包含这些内部标记、模板话术或无依据内容。
 - `max_dead_links`：Post-process 后允许的最大死链数量，当前所有 case 均为 0。
 - `max_self_loops`：图谱允许的最大自链数量，当前所有 case 均为 0。
+
+## questions 语义
+
+`questions` 供 M5 QA eval 复用同一批输入文档。M4 只要求字段可解析，不执行问答。
+
+- `id`：case 内唯一的问题 ID。
+- `question`：面向最终用户的自然语言问题。
+- `expected_behavior`：`answer` 表示应基于知识库回答，`no_answer` 表示应拒绝编造。
+- `expected_answer_contains`：答案中应包含的关键短语，不要求整句完全匹配。
+- `expected_citation_terms`：引用内容中应命中的关键证据词。
+- `expected_sources.min_count`：最少引用数量。
+- `expected_sources.allowed_types`：允许的引用来源类型，当前建议使用 `document` 和 `wiki_page`。
+- `must_not_contain`：答案中不得出现的内容。
 
 ## 首批覆盖
 

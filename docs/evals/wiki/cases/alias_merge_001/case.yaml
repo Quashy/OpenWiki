@@ -18,6 +18,38 @@ documents:
   - path: documents/receipt-note.md
     title: 收据备注
 
+questions:
+  - id: q_same_shop_aliases
+    question: 晨光、CG Coffee 和 Morning Light Cafe 是同一家店吗？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 同一家店
+      - 桂花路 18 号
+    expected_citation_terms:
+      - CG Coffee
+      - 同一家店
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 三家不同店
+  - id: q_member_discount_unknown
+    question: 晨光咖啡的会员折扣是多少？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms: []
+    expected_sources:
+      min_count: 0
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 9 折
+      - 会员价
+
 expectations:
   must_have_pages:
     - slug: entity/morning-light-cafe

@@ -16,6 +16,40 @@ documents:
   - path: documents/delivery-and-booking.md
     title: 快递与预约记录
 
+questions:
+  - id: q_delivery_tracking_code
+    question: 快递取件的顺丰单号和取件码分别是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - SF-2026-0828-7781
+      - 5739
+    expected_citation_terms:
+      - SF-2026-0828-7781
+      - 取件码 5739
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - SF-2026-0828-7782
+  - id: q_dental_booking_code
+    question: 洗牙预约码和预约时间是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - DENTAL-4492
+      - 2026-09-03 15:30
+    expected_citation_terms:
+      - DENTAL-4492
+      - 2026-09-03 15:30
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - DENTAL-4493
+
 expectations:
   must_have_pages:
     - slug: entity/parcel-pickup
@@ -44,8 +78,8 @@ expectations:
         - DENTAL-4492
   must_have_relations: []
   must_not_contain:
-    - SF-2026-0828-778
-    - DENTAL-449
+    - SF-2026-0828-7782
+    - DENTAL-4493
     - chunk_
   max_dead_links: 0
   max_self_loops: 0

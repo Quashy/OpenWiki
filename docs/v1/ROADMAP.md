@@ -1,10 +1,10 @@
 # OpenWiki V2 v1 开发路线图
 
-> 版本：v2.2
+> 版本：v2.5
 > 日期：2026-08-28
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.2 — M4 明确采用“先搭评估框架，再改 Prompt”的数据集驱动路线；M3 后先补 Wiki Prompt 工程化作为 M4，单 KB RAG 问答顺延到 M5；M2-M5 构成 demo 主线（M5 退出即可演示）；工程补齐顺延到 M6，演进项顺延到 M7。
+> 变更：v2.5 — M4 数据集拆为 Micro Eval 与 Scenario Eval 两层：Micro 用小而尖锐的 case 做快速回归，Scenario 用中等生活场景包做真实复杂度验收。
 
 ---
 
@@ -94,8 +94,8 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 未开始 | 数据集 case、真实 DeepSeek eval runner、prompt 抽取、Reduce/Citation 强化、Dedup、prompt version trace、质量报告通过 |
-| M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 未开始 | 数据集 case、确定性指标、真实 DeepSeek eval runner、prompt 抽取、Reduce/Citation 强化、Dedup、prompt version trace、质量报告通过 |
+| M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | 复用 Wiki eval questions、SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
 
@@ -302,11 +302,25 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 
 - 新增 Wiki 质量评估数据集目录，建议放在 `docs/evals/wiki/`：
   - 每个 case 包含输入文档、Wiki 配置、期望页面/别名/引用/关系/禁止内容等结构化断言。
-  - 首批 8-12 个 case 覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、低价值噪音、引用约束、死链约束、图谱自链、空证据不编造。
+  - 数据集分两层：Micro Eval 和 Scenario Eval。
+  - Micro Eval：首批 8-12 个小而尖锐的 case，每个 case 1-3 个短文档、1-2 个 `questions`，覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、低价值噪音、引用约束、死链约束、图谱自链、空证据不编造。
+  - Scenario Eval：补 3-5 个中等生活场景包，每个 scenario 5-10 个文档、5-8 个 `questions`，覆盖更真实的多文档聚合、实体规模增长、关系图谱质量和后续 QA 召回稳定性。
+  - 每个 case 先写 1-2 个 `questions`，作为 M5 QA eval 的输入；M4 只校验字段可解析，不执行问答。
 - 新增本地真实 LLM eval runner：
   - 使用 DeepSeek Key 运行固定 case，不进入 CI 默认路径。
   - 输出 Markdown/JSON 报告，记录 case 通过率、页面数量、死链数量、引用命中、Dedup 结果、图谱异常、trace_id 列表和失败摘要。
   - 支持只跑单个 case，方便调 prompt 时快速复现。
+- eval runner 第一版只做确定性指标，不引入 LLM-as-judge：
+  - `pass_rate`
+  - `must_have_page_hit_rate`
+  - `forbidden_page_violation_count`
+  - `alias_hit_rate`
+  - `citation_requirement_pass_rate`
+  - `relation_hit_rate`
+  - `dead_link_count`
+  - `self_loop_count`
+  - `forbidden_content_count`
+  - `required_term_hit_rate`
 - 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`。
 - 为每个阶段建立 prompt version，并在 Langfuse span metadata 中记录 `prompt_family`、`prompt_stage`、`prompt_version`。
 - 强化六阶段 prompt：
@@ -322,25 +336,28 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 **推荐实施顺序**
 
 1. 数据集格式：定义 case schema、输入文档目录、期望断言格式和报告格式。
-2. 首批 case：先写 8-12 个小而尖锐的质量样例，不追求大规模，优先覆盖真实容易失败的边界。
-3. Eval runner：复用现有文档处理与 Wiki ingest 能力，跑完后对页面、引用、图谱和内容做结构化断言，并输出 trace_id。
+2. Micro Eval：先写 8-12 个小而尖锐的质量样例，不追求大规模，优先覆盖真实容易失败的边界，并为每个 case 写 1-2 个后续 QA 问题。
+3. Micro Eval runner：复用现有文档处理与 Wiki ingest 能力，跑完后对页面、引用、图谱和内容做结构化断言，输出确定性指标和 trace_id。
 4. Prompt 抽取：行为等价迁移到 `prompts.py`，新增 prompt 结构测试，先不改变生成策略。
-5. Prompt 强化：基于 eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Summary、Overview。
+5. Prompt 强化：基于 Micro Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Summary、Overview。
 6. Dedup pass：新增 `related != same` 去重规则与相似但不同条目的固定语料。
-7. Prompt 观测：Langfuse trace 支持按 prompt version、case_id 定位质量问题。
-8. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
+7. Scenario Eval：补 3-5 个中等生活场景包，用于验证多文档、多实体、多关系下的真实复杂度。
+8. Prompt 观测：Langfuse trace 支持按 prompt version、case_id、scenario_id 定位质量问题。
+9. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
 
 **退出门禁**
 
-- `docs/evals/wiki/` 至少包含 8 个固定 case，并覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束和空证据不编造。
+- `docs/evals/wiki/` 至少包含 8 个 Micro case，并覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束和空证据不编造。
+- `docs/evals/wiki/` 至少包含 3 个 Scenario pack，每个 pack 包含 5-10 个文档和 5-8 个 `questions`，用于真实复杂度验收。
+- case schema 支持 `questions`，每个 case 至少 1 个问题；M4 只验证结构，M5 QA eval 复用同一批输入文档和事实断言执行问答。
 - eval runner 可使用 DeepSeek Key 完整运行全量 case，并生成可追溯报告。
-- 报告中每个 case 都记录输入文档、生成任务、trace_id、失败断言和关键页面摘要。
+- 报告中每个 case 都记录输入文档、生成任务、trace_id、失败断言、关键页面摘要和确定性指标。
 - 结构化断言覆盖 `must_have_pages`、`must_not_have_pages`、`must_have_aliases`、`must_have_citations`、`must_have_relations`、`must_not_contain`、死链数和自链数。
 - `pipeline.py` 不再包含长 prompt 文本，只负责流水线编排。
 - prompt builder 单测覆盖阶段名、版本号、输出格式和关键约束。
 - M3 固定语料测试通过，页面类型、目录树、图谱和幂等性保持稳定。
 - 新增相似但不同条目的固定语料，验证 Dedup 不错误合并。
-- Langfuse trace 可按 prompt version 和 case_id 过滤 Wiki ingest 各阶段调用。
+- Langfuse trace 可按 prompt version、case_id 和 scenario_id 过滤 Wiki ingest 各阶段调用。
 - 真实 DeepSeek smoke test 生成页面不含内部 chunk id、自链、死链和明显无依据扩写。
 
 ### M5：单 KB RAG 问答（🎯 Demo 达成）
@@ -358,6 +375,7 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 - 4.6.5 多轮对话：上下文改写为独立查询再检索，最近 10 轮（20 条消息）进入上下文，历史持久化（标题自动生成后置，见 2.2）。
 - 4.6.6 会话管理：会话列表、重命名、删除、记录所选知识库范围（推荐问题后置，见 2.2）。
 - 4.7 观测第三批：Langfuse `chat_qa` trace（query_understand、三路检索、merge、completion span），SSE done 事件返回 trace_id（对应 PRD 4.7「LLM 调用链路/检索过程」维度）。
+- QA 评估复用 M4 `docs/evals/wiki/` 的输入文档和 `questions`，不另建独立事实源；M5 只新增 QA runner 和问答断言执行。
 
 **接口**
 
@@ -371,6 +389,7 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 - LOAD_HISTORY、QUERY_UNDERSTAND、CHUNK_SEARCH、MERGE、FILTER、PROMPT、STREAM 管线完整。
 - Dense、Sparse、GraphRAG 均参与召回，GraphRAG 无命中时不影响主流程。
 - RRF 后 Top-8 证据可复现，回答引用只指向进入上下文的片段。
+- QA eval 能读取 `questions` 并输出 `qa_pass_rate`、`answer_required_term_hit_rate`、`no_answer_pass_rate`、`citation_min_count_pass_rate`、`citation_grounding_hit_rate`、`retrieval_expected_source_hit_rate`、`wiki_boost_hit_rate`、`graph_context_hit_rate`、`forbidden_answer_content_count`。
 - SSE 至少包含 `progress`、`token`、`done`、`error` 事件，done 事件携带 trace_id。
 - Source KB 和 Wiki KB 均可独立问答，引用可跳转到原文或 Wiki 页面。
 - 问答可在 Langfuse 中按 trace_id 定位完整调用链。
@@ -473,7 +492,7 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2
 | 4.5.3 | 页面内容结构（元信息字段 + SUMMARY 行 + 双链） | v1 | M3 |
 | 4.5.4 | Wiki 生成触发（手动、互斥、全量重建） | 部分：自动触发 + debounce 后置 | M3 |
 | 4.5.5 | 六阶段流水线（Extract/Citation/Taxonomy/Summary/Reduce/Post-process） | v1 | M3 |
-| 4.5.5 | Wiki Prompt 工程化（评估框架、模板抽取、版本、Dedup、质量回归） | v1 | M4 |
+| 4.5.5 | Wiki Prompt 工程化（评估框架、确定性指标、模板抽取、版本、Dedup、质量回归） | v1 | M4 |
 | 4.5.6 | Wiki 页面浏览（目录树、双链、来源跳转、搜索） | v1 | M3 |
 | 4.5.7 | Wiki 页面编辑（修订快照、重新向量化、人工编辑提示） | v1 | M6 |
 | 4.5.8 | 版本管理（历史、diff、回滚） | v1 | M6 |
@@ -483,6 +502,7 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2
 | 4.6.2 | 多路混合检索（三路并行 + RRF + Wiki boost） | v1 | M5 |
 | 4.6.3 | RAG 问答流程（改写、检索、流式、进度） | v1 | M5 |
 | 4.6.4 | 引用溯源（角标、来源列表、跳转、类型区分） | v1 | M5 |
+| 4.6.4 | QA 评估（复用 Wiki eval questions、召回/引用/无答案指标） | v1 | M5 |
 | 4.6.5 | 多轮对话（改写、10 轮窗口、持久化） | 部分：标题自动生成后置 | M5 |
 | 4.6.6 | 会话管理（列表、重命名、删除、范围记录） | 部分：推荐问题后置 | M5 |
 | 4.7 | 观测：文档解析进度 trace | v1 | M2（已完成） |

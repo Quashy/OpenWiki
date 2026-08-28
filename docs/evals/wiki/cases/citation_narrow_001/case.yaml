@@ -16,6 +16,39 @@ documents:
   - path: documents/lemon-cake-recipe.md
     title: 柠檬蛋糕食谱
 
+questions:
+  - id: q_lemon_cake_temperature_time
+    question: 柠檬蛋糕需要用多少温度烤多久？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 175°C
+      - 32 分钟
+    expected_citation_terms:
+      - 预热到 175°C
+      - 烘烤 32 分钟
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 180°C
+      - 30 分钟左右
+  - id: q_lemon_cake_last_minutes
+    question: 柠檬蛋糕表面上色过快时应该怎么办？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 最后 8 分钟盖锡纸
+    expected_citation_terms:
+      - 最后 8 分钟盖锡纸
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 降低到 150°C
+
 expectations:
   must_have_pages:
     - slug: entity/lemon-cake
