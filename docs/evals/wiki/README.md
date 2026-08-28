@@ -235,6 +235,12 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality
 
 运行前需确保当前环境能读取 `DEEPSEEK_API_KEY`，并能访问 `DATABASE_URL` 与 `OLLAMA_BASE_URL`。宿主机运行通常需要把数据库和 Ollama 地址配置为宿主机可访问地址；容器内运行则使用 docker compose 注入的服务地址。
 
+宿主机运行时，如果 `.env` 中的 `OLLAMA_BASE_URL` 面向容器网络，可显式指定本机可访问地址和 1024 维 embedding 模型：
+
+```powershell
+$env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --run-id "wiki_prompt_v0_1_baseline_20260828" --ollama-base-url "http://localhost:11434" --embedding-model "bge-m3:latest"
+```
+
 只运行单个 case，适合调 prompt 时快速复现：
 
 ```powershell
@@ -242,3 +248,31 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_me
 ```
 
 评估报告默认写入 `reports/wiki-evals/`，包含同名 JSON 和 Markdown。报告记录 `pass_rate`、`must_have_page_hit_rate`、`forbidden_page_violation_count`、`alias_hit_rate`、`citation_requirement_pass_rate`、`relation_hit_rate`、`dead_link_count`、`self_loop_count`、`forbidden_content_count`、`required_term_hit_rate`、每个 case 的任务信息、trace_id、失败断言和关键页面摘要。
+
+报告还记录 `prompt_family`、`prompt_version`、LLM provider/model、embedding provider/model，方便后续 Dedup 或 prompt 调整后做同口径对比。
+
+## `wiki_prompt_v0.1` Micro Eval 基准
+
+2026-08-28 已用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest` 跑完 10 个 Micro case，run id 为 `wiki_prompt_v0_1_baseline_20260828`。
+
+报告文件：
+
+- `reports/wiki-evals/wiki-eval-wiki_prompt_v0_1_baseline_20260828.json`
+- `reports/wiki-evals/wiki-eval-wiki_prompt_v0_1_baseline_20260828.md`
+
+本次 10 个 case 均执行完成并生成 trace_id，无 case execution error。当前基准质量结果如下：
+
+| 指标 | 值 |
+|---|---:|
+| `pass_rate` | 0.0 |
+| `must_have_page_hit_rate` | 0.3333 |
+| `forbidden_page_violation_count` | 1 |
+| `alias_hit_rate` | 0.4138 |
+| `citation_requirement_pass_rate` | 0.3571 |
+| `relation_hit_rate` | 0.0 |
+| `dead_link_count` | 0 |
+| `self_loop_count` | 0 |
+| `forbidden_content_count` | 7 |
+| `required_term_hit_rate` | 0.1364 |
+
+该结果是首个可比较 prompt 质量基线，不代表 M4 质量门禁通过。后续应先推进 Dedup pass，再用同一批 Micro case 与本基线对比。

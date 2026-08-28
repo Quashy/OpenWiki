@@ -184,6 +184,11 @@ async def process_wiki_ingest_job(
             "task_id": task.id,
             "task_type": task.task_type,
             "actor_id": task.payload.get("actor_id"),
+            "eval_case_id": task.payload.get("eval_case_id"),
+            "eval_run_id": task.payload.get("eval_run_id"),
+            "prompt_family": task.payload.get("prompt_family"),
+            "prompt_version": task.payload.get("prompt_version"),
+            "llm_model": task.payload.get("llm_model"),
         },
     )
     if llm is not None:

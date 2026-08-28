@@ -21,6 +21,7 @@ from app.models import (
     Document,
     Entity,
     KnowledgeBase,
+    ModelSetting,
     Relation,
     TaskPendingOp,
     User,
@@ -36,6 +37,7 @@ from app.services.llm.deepseek_provider import DeepSeekLLMProvider
 from app.services.model_service import HttpOllamaClient
 from app.services.wiki.page_service import DOUBLE_LINK_RE, full_markdown
 from app.services.wiki.pipeline import process_wiki_ingest_job
+from app.services.wiki.prompts import PROMPT_FAMILY, PROMPT_VERSION
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DATASET_ROOT = REPO_ROOT / "docs" / "evals" / "wiki"
@@ -122,6 +124,10 @@ class CaseResult:
     wiki_kb_id: str | None = None
     page_count: int = 0
     generated_pages: list[dict[str, Any]] = field(default_factory=list)
+    prompt_family: str = PROMPT_FAMILY
+    prompt_version: str = PROMPT_VERSION
+    llm_model: str = DEFAULT_DEEPSEEK_MODEL
+    embedding_model: str = ""
 
 
 def ratio(hit: int, total: int) -> float:
@@ -202,12 +208,23 @@ async def run_eval(
     output_dir: Path,
     run_id: str,
     model: str,
+    embedding_model: str,
+    ollama_base_url: str,
     fail_fast: bool,
 ) -> dict[str, Any]:
     results: list[CaseResult] = []
     for case in cases:
         try:
-            results.append(await run_case(case, settings=settings, run_id=run_id, model=model))
+            results.append(
+                await run_case(
+                    case,
+                    settings=settings,
+                    run_id=run_id,
+                    model=model,
+                    embedding_model=embedding_model,
+                    ollama_base_url=ollama_base_url,
+                )
+            )
         except Exception as exc:
             result = CaseResult(
                 id=case.id,
@@ -221,22 +238,38 @@ async def run_eval(
             if fail_fast:
                 break
 
-    report = build_report(run_id=run_id, cases=cases, results=results)
+    report = build_report(
+        run_id=run_id,
+        cases=cases,
+        results=results,
+        model=model,
+        embedding_model=embedding_model,
+        ollama_base_url=ollama_base_url,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / f"wiki-eval-{run_id}.json"
     md_path = output_dir / f"wiki-eval-{run_id}.md"
+    report["report_paths"] = {"json": str(json_path), "markdown": str(md_path)}
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(render_markdown_report(report), encoding="utf-8")
-    report["report_paths"] = {"json": str(json_path), "markdown": str(md_path)}
     return report
 
 
-async def run_case(case: WikiEvalCase, *, settings: Settings, run_id: str, model: str) -> CaseResult:
+async def run_case(
+    case: WikiEvalCase,
+    *,
+    settings: Settings,
+    run_id: str,
+    model: str,
+    embedding_model: str,
+    ollama_base_url: str,
+) -> CaseResult:
     if not settings.deepseek_api_key:
         raise ValueError("DEEPSEEK_API_KEY is required for real LLM eval")
 
     ollama_client = HttpOllamaClient()
     async with AsyncSessionLocal() as session:
+        await configure_eval_ollama(session, ollama_base_url=ollama_base_url)
         username = f"eval_{case.id}_{run_id}"[:64]
         username = f"{username[:55]}_{new_uuid()[:8]}"
         user = User(username=username, password_hash=hash_password(new_uuid()))
@@ -258,7 +291,7 @@ async def run_case(case: WikiEvalCase, *, settings: Settings, run_id: str, model
                 "type": "document",
                 "name": f"eval-source-{case.id}-{run_id}",
                 "description": case.purpose,
-                "embedding_model_tag": settings.ollama_embed_model,
+                "embedding_model_tag": embedding_model,
             },
         )
         wiki_kb = await create_kb(
@@ -271,7 +304,7 @@ async def run_case(case: WikiEvalCase, *, settings: Settings, run_id: str, model
                 "type": "wiki",
                 "name": f"eval-wiki-{case.id}-{run_id}",
                 "description": case.purpose,
-                "embedding_model_tag": settings.ollama_embed_model,
+                "embedding_model_tag": embedding_model,
                 "source_knowledge_base_ids": [source_kb.id],
                 "wiki_config": case.wiki_config,
             },
@@ -307,6 +340,10 @@ async def run_case(case: WikiEvalCase, *, settings: Settings, run_id: str, model
                 "rebuild": False,
                 "eval_case_id": case.id,
                 "eval_run_id": run_id,
+                "prompt_family": PROMPT_FAMILY,
+                "prompt_version": PROMPT_VERSION,
+                "llm_model": model,
+                "embedding_model": embedding_model,
             },
             created_at=now_utc(),
             updated_at=now_utc(),
@@ -374,7 +411,21 @@ async def run_case(case: WikiEvalCase, *, settings: Settings, run_id: str, model
             wiki_kb_id=wiki_kb.id,
             page_count=len(pages),
             generated_pages=generated_pages,
+            prompt_family=PROMPT_FAMILY,
+            prompt_version=PROMPT_VERSION,
+            llm_model=model,
+            embedding_model=embedding_model,
         )
+
+
+async def configure_eval_ollama(session: AsyncSession, *, ollama_base_url: str) -> None:
+    row = await session.get(ModelSetting, "global")
+    if row is None:
+        row = ModelSetting(id="global", ollama_base_url=ollama_base_url)
+        session.add(row)
+    else:
+        row.ollama_base_url = ollama_base_url
+    await session.commit()
 
 
 async def create_case_documents(
@@ -561,7 +612,15 @@ def page_text(page: WikiPage) -> str:
     return full_markdown(page.summary, page.content)
 
 
-def build_report(*, run_id: str, cases: list[WikiEvalCase], results: list[CaseResult]) -> dict[str, Any]:
+def build_report(
+    *,
+    run_id: str,
+    cases: list[WikiEvalCase],
+    results: list[CaseResult],
+    model: str,
+    embedding_model: str,
+    ollama_base_url: str,
+) -> dict[str, Any]:
     totals = MetricTotals()
     for result in results:
         totals.add(totals_from_dict(result.totals))
@@ -569,6 +628,13 @@ def build_report(*, run_id: str, cases: list[WikiEvalCase], results: list[CaseRe
     return {
         "run_id": run_id,
         "generated_at": datetime.now(UTC).isoformat(),
+        "prompt_family": PROMPT_FAMILY,
+        "prompt_version": PROMPT_VERSION,
+        "llm_provider": "deepseek",
+        "llm_model": model,
+        "embedding_provider": "ollama",
+        "embedding_model": embedding_model,
+        "ollama_base_url": ollama_base_url,
         "case_count": len(results),
         "passed_case_count": passed_cases,
         "metrics": totals.metrics(total_cases=len(results), passed_cases=passed_cases),
@@ -586,6 +652,9 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"# Wiki Eval Report {report['run_id']}",
         "",
         f"- 生成时间：{report['generated_at']}",
+        f"- Prompt：{report['prompt_family']} / {report['prompt_version']}",
+        f"- LLM：{report['llm_provider']} / {report['llm_model']}",
+        f"- Embedding：{report['embedding_provider']} / {report['embedding_model']}",
         f"- Case 数：{report['case_count']}",
         f"- 通过 Case：{report['passed_case_count']}",
         "",
@@ -628,6 +697,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
     parser.add_argument("--case", action="append", dest="case_ids", help="Run a single case id. Repeatable.")
     parser.add_argument("--model", default=DEFAULT_DEEPSEEK_MODEL)
+    parser.add_argument("--embedding-model", default=None)
+    parser.add_argument("--ollama-base-url", default=None)
     parser.add_argument("--run-id", default=datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"))
     parser.add_argument("--dry-run", action="store_true", help="Validate dataset files without DB or LLM calls.")
     parser.add_argument("--fail-fast", action="store_true")
@@ -643,12 +714,16 @@ async def async_main(argv: list[str]) -> int:
         return 0
 
     settings = get_settings()
+    embedding_model = args.embedding_model or settings.ollama_embed_model
+    ollama_base_url = args.ollama_base_url or settings.ollama_base_url
     report = await run_eval(
         cases,
         settings=settings,
         output_dir=args.output_dir,
         run_id=args.run_id,
         model=args.model,
+        embedding_model=embedding_model,
+        ollama_base_url=ollama_base_url,
         fail_fast=args.fail_fast,
     )
     print(json.dumps({"metrics": report["metrics"], "report_paths": report["report_paths"]}, ensure_ascii=False))

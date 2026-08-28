@@ -344,6 +344,7 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - Prompt 接入：`llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 已抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 定义的 `wiki_prompt_v0.1`。
 - Prompt 观测：每个 builder 返回 `prompt_family=wiki_ingest`、`prompt_stage`、`prompt_version=wiki_prompt_v0.1`，`ObservedLLMProvider` 已在 Langfuse LLM span metadata 中记录这些字段。
 - Prompt 测试：新增 prompt builder 单测覆盖阶段名、版本号、输出格式关键约束、渲染后无 `{{...}}` 占位符残留，以及 LLM span metadata 记录 prompt version；后端全量测试 `PYTHONPATH=backend python -m pytest backend/tests` 通过，29 passed。
+- Micro Eval 基准：使用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest`、`wiki_prompt_v0.1` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki-eval-wiki_prompt_v0_1_baseline_20260828.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。基准结果：`pass_rate=0.0`、`must_have_page_hit_rate=0.3333`、`alias_hit_rate=0.4138`、`citation_requirement_pass_rate=0.3571`、`relation_hit_rate=0.0`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.1364`。本结果作为后续 Dedup 与 prompt 强化对比基线，不在本轮调 prompt。
 
 **推荐实施顺序**
 
@@ -354,7 +355,7 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 5. Prompt 接入：将 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 接入 `backend/app/services/wiki/prompts.py`，先覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview 这 6 个现有运行阶段。
 6. Prompt 结构测试：覆盖阶段名、版本号、输出 schema、关键硬约束，以及渲染后不残留 `{{...}}` 占位符。
 7. Prompt 观测：Langfuse trace 支持记录 `prompt_family`、`prompt_stage`、`prompt_version`，并带上 `case_id` / `scenario_id`。
-8. Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case，以 `wiki_prompt_v0.1` 的结果作为首个 prompt 质量基准报告。
+8. 已完成 Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case，以 `wiki_prompt_v0.1` 的结果作为首个 prompt 质量基准报告。
 9. Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，使用 `related != same` 规则；接入后重新跑 Micro Eval，与第 8 步基准比较。
 10. Scenario Eval runner：扩展 runner 支持 `scenarios/`，用于验证多文档、多实体、多关系下的真实复杂度。
 11. Prompt 强化：基于 Micro Eval 与 Scenario Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Source Summary、Overview。
