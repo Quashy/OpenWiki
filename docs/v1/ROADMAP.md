@@ -1,10 +1,10 @@
 # OpenWiki V2 v1 开发路线图
 
-> 版本：v2.6
+> 版本：v2.7
 > 日期：2026-08-28
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.6 — M4 Scenario Eval 首批 3 个中等生活场景包已落地，并完成结构静态校验。
+> 变更：v2.7 — M4 明确以 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 作为首个可测 prompt 基准；先接入现有 6 个阶段并跑 Micro Eval，再单独推进 Dedup 与 Scenario Eval runner。
 
 ---
 
@@ -295,8 +295,7 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - prompt 没有显式版本，Langfuse trace 无法准确关联生成质量与 prompt 变更。
 - Extract、Citation、Reduce 约束偏弱，容易出现抽取噪音、引用过宽、归并扩写或幻觉。
 - 当前没有独立 Dedup 阶段，相关但不同的实体或概念存在被错误合并的风险。
-
-WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略：prompt 模板集中管理、抽取粒度可控、引用必须来自实质讨论 chunk、分类复用已有目录、Reduce 定位为 grounded compiler、Dedup 明确 `related != same`。
+- `docs/prompt/prompt_rules.md` 已沉淀 Wiki prompt 规则基线，`docs/prompt/prompt.md` 已定义 `wiki_prompt_v0.1` 模板契约。M4 后续以这版模板接入后的真实运行结果作为首个可测基准。
 
 **交付**
 
@@ -321,7 +320,7 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
   - `self_loop_count`
   - `forbidden_content_count`
   - `required_term_hit_rate`
-- 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`。
+- 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 中定义的 `wiki_prompt_v0.1`。
 - 为每个阶段建立 prompt version，并在 Langfuse span metadata 中记录 `prompt_family`、`prompt_stage`、`prompt_version`。
 - 强化六阶段 prompt：
   - Extract：明确 entity/concept 边界、aliases 规则、slug 稳定性，引入 `focused/standard/exhaustive` 抽取粒度。
@@ -330,7 +329,7 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
   - Summary：保留 `SUMMARY:`，空内容不猜测，双链只允许来自 allowed links。
   - Reduce：模型定位为 compiler，不扩写、不幻觉；新增事实必须由 source chunks 支持；禁止自链、坏链和内部 chunk id；冲突信息单独处理。
   - Overview/Post-process：LLM 只负责综述或索引导言；死链清理、交叉链接注入优先走确定性代码。
-- 新增 Dedup pass：位于 Extract 之后、Citation 之前，只在高置信同义条件下合并。
+- 新增 Dedup pass：位于 Extract 之后、Citation 之前，只在高置信同义条件下合并。Dedup 属于独立 pipeline 行为变更，必须在 6 阶段 prompt 接入并跑完 Micro Eval 基准后单独推进。
 - 保留 pytest 的 fake provider 快速回归；真实 Key 只用于本地评估脚本和人工验收，避免 CI 依赖外部 LLM 稳定性和成本。
 
 **推进记录（2026-08-28）**
@@ -340,18 +339,23 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 - 覆盖能力：每个 scenario 都包含多文档综合题、关系题、冲突或变更题、参数/编号事实题和无答案题。
 - 结构化断言：每个 scenario 的 `expectations` 都包含页面、引用、关系、禁止内容、死链和自链约束。
 - 静态校验：Scenario Eval 结构校验通过，输出 `validated 3 scenarios, 18 documents, 18 questions`。本轮为文档型数据集，不跑后端 pytest。
+- Prompt 文档：新增 `docs/prompt/prompt_rules.md` 规则基线与 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 模板契约。
+- 推进决策：不再等待旧内联 prompt 单独成为唯一 baseline；下一步直接接入 `wiki_prompt_v0.1` 的 6 个现有阶段，跑 Micro Eval 作为首个可比较基准。Dedup 和 Scenario Eval runner 后置为独立改动。
 
 **推荐实施顺序**
 
-1. 数据集格式：定义 case schema、输入文档目录、期望断言格式和报告格式。
-2. Micro Eval：先写 8-12 个小而尖锐的质量样例，不追求大规模，优先覆盖真实容易失败的边界，并为每个 case 写 1-2 个后续 QA 问题。
-3. Micro Eval runner：复用现有文档处理与 Wiki ingest 能力，跑完后对页面、引用、图谱和内容做结构化断言，输出确定性指标和 trace_id。
-4. Prompt 抽取：行为等价迁移到 `prompts.py`，新增 prompt 结构测试，先不改变生成策略。
-5. Prompt 强化：基于 Micro Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Summary、Overview。
-6. Dedup pass：新增 `related != same` 去重规则与相似但不同条目的固定语料。
-7. Scenario Eval：补 3-5 个中等生活场景包，用于验证多文档、多实体、多关系下的真实复杂度。
-8. Prompt 观测：Langfuse trace 支持按 prompt version、case_id、scenario_id 定位质量问题。
-9. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
+1. 已完成数据集格式：定义 case schema、输入文档目录、期望断言格式和报告格式。
+2. 已完成 Micro Eval 数据：首批 10 个小而尖锐的质量样例，覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束、死链、自链和空证据不编造。
+3. 已完成 Micro Eval runner 第一版：复用现有文档处理与 Wiki ingest 能力，对页面、引用、图谱和内容做结构化断言，输出确定性指标和 trace_id。
+4. 已完成 Scenario Eval 数据：3 个中等生活场景包已落地并通过结构静态校验。
+5. Prompt 接入：将 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 接入 `backend/app/services/wiki/prompts.py`，先覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview 这 6 个现有运行阶段。
+6. Prompt 结构测试：覆盖阶段名、版本号、输出 schema、关键硬约束，以及渲染后不残留 `{{...}}` 占位符。
+7. Prompt 观测：Langfuse trace 支持记录 `prompt_family`、`prompt_stage`、`prompt_version`，并带上 `case_id` / `scenario_id`。
+8. Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case，以 `wiki_prompt_v0.1` 的结果作为首个 prompt 质量基准报告。
+9. Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，使用 `related != same` 规则；接入后重新跑 Micro Eval，与第 8 步基准比较。
+10. Scenario Eval runner：扩展 runner 支持 `scenarios/`，用于验证多文档、多实体、多关系下的真实复杂度。
+11. Prompt 强化：基于 Micro Eval 与 Scenario Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Source Summary、Overview。
+12. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
 
 **退出门禁**
 
@@ -362,9 +366,11 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 - 报告中每个 case 都记录输入文档、生成任务、trace_id、失败断言、关键页面摘要和确定性指标。
 - 结构化断言覆盖 `must_have_pages`、`must_not_have_pages`、`must_have_aliases`、`must_have_citations`、`must_have_relations`、`must_not_contain`、死链数和自链数。
 - `pipeline.py` 不再包含长 prompt 文本，只负责流水线编排。
-- prompt builder 单测覆盖阶段名、版本号、输出格式和关键约束。
+- `backend/app/services/wiki/prompts.py` 接入 `docs/prompt/prompt.md` 定义的 `wiki_prompt_v0.1`，覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview。
+- prompt builder 单测覆盖阶段名、版本号、输出格式、关键约束和渲染后无残留占位符。
+- 产出 `wiki_prompt_v0.1` 的 Micro Eval 基准报告，报告中每个 case 都能关联 prompt version。
 - M3 固定语料测试通过，页面类型、目录树、图谱和幂等性保持稳定。
-- 新增相似但不同条目的固定语料，验证 Dedup 不错误合并。
+- 新增 Dedup pass 后重新运行 Micro Eval，并与 `wiki_prompt_v0.1` 基准报告对比；相似但不同条目不得错误合并。
 - Langfuse trace 可按 prompt version、case_id 和 scenario_id 过滤 Wiki ingest 各阶段调用。
 - 真实 DeepSeek smoke test 生成页面不含内部 chunk id、自链、死链和明显无依据扩写。
 
