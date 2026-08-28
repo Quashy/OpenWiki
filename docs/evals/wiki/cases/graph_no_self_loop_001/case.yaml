@@ -1,0 +1,53 @@
+id: graph_no_self_loop_001
+title: 图谱不得生成自链
+purpose: 验证名字相近的健身计划和记录模板不会被错误归并，也不会生成实体到自身的关系边。
+tags:
+  - graph
+  - self-loop
+  - entity-boundary
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/running-plan.md
+    title: 晨跑计划
+  - path: documents/running-template.md
+    title: 晨跑记录模板
+
+expectations:
+  must_have_pages:
+    - slug: entity/morning-run-plan
+      page_type: entity
+      title_contains: 晨跑计划
+    - slug: entity/morning-run-log-template
+      page_type: entity
+      title_contains: 晨跑记录模板
+  must_not_have_pages: []
+  must_have_aliases:
+    entity/morning-run-plan:
+      - 晨跑计划
+    entity/morning-run-log-template:
+      - 晨跑记录模板
+  must_have_citations:
+    entity/morning-run-plan:
+      min_count: 1
+      required_terms:
+        - 每周三次
+    entity/morning-run-log-template:
+      min_count: 1
+      required_terms:
+        - 距离
+        - 心率
+  must_have_relations:
+    - source_slug: entity/morning-run-plan
+      target_slug: entity/morning-run-log-template
+      relation_type_contains: 使用
+  must_not_contain:
+    - 晨跑计划依赖晨跑计划
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

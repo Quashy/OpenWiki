@@ -1,0 +1,52 @@
+id: citation_narrow_001
+title: 引用必须指向实质证据段
+purpose: 验证菜谱页面引用到包含具体温度和时间的段落，而不是只引用泛泛提到烤箱的背景段落。
+tags:
+  - citation
+  - grounding
+  - recipe
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/lemon-cake-recipe.md
+    title: 柠檬蛋糕食谱
+
+expectations:
+  must_have_pages:
+    - slug: entity/lemon-cake
+      page_type: entity
+      title_contains: 柠檬蛋糕
+    - slug: concept/baking-temperature
+      page_type: concept
+      title_contains: 烘焙温度
+  must_not_have_pages: []
+  must_have_aliases:
+    entity/lemon-cake:
+      - 柠檬蛋糕
+      - Lemon Cake
+  must_have_citations:
+    entity/lemon-cake:
+      min_count: 1
+      required_terms:
+        - 175°C
+        - 32 分钟
+    concept/baking-temperature:
+      min_count: 1
+      required_terms:
+        - 预热
+        - 175°C
+  must_have_relations:
+    - source_slug: entity/lemon-cake
+      target_slug: concept/baking-temperature
+      relation_type_contains: 烘焙
+  must_not_contain:
+    - 180°C
+    - 30 分钟左右
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

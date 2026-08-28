@@ -1,0 +1,51 @@
+id: precise_identifier_001
+title: 精确编号不能改写或漏掉
+purpose: 验证快递单号、预约码和订单号等精确字符串在页面中保持原样，并能被引用溯源。
+tags:
+  - precise-id
+  - citation
+  - factuality
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/delivery-and-booking.md
+    title: 快递与预约记录
+
+expectations:
+  must_have_pages:
+    - slug: entity/parcel-pickup
+      page_type: entity
+      title_contains: 快递取件
+    - slug: entity/dental-cleaning-booking
+      page_type: entity
+      title_contains: 洗牙预约
+  must_not_have_pages:
+    - slug: entity/sf-2026-0828
+  must_have_aliases:
+    entity/parcel-pickup:
+      - 快递取件
+      - SF-2026-0828-7781
+    entity/dental-cleaning-booking:
+      - 洗牙预约
+      - DENTAL-4492
+  must_have_citations:
+    entity/parcel-pickup:
+      min_count: 1
+      required_terms:
+        - SF-2026-0828-7781
+    entity/dental-cleaning-booking:
+      min_count: 1
+      required_terms:
+        - DENTAL-4492
+  must_have_relations: []
+  must_not_contain:
+    - SF-2026-0828-778
+    - DENTAL-449
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

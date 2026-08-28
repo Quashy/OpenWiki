@@ -1,0 +1,55 @@
+id: related_not_same_001
+title: 相关但不同的实体不能合并
+purpose: 验证名称相近、地点相邻、负责人相同的两个生活服务实体仍保持独立页面。
+tags:
+  - dedup
+  - related-not-same
+  - entity-boundary
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/cafe-intro.md
+    title: 晨光咖啡馆介绍
+  - path: documents/baking-class.md
+    title: 晨光烘焙教室介绍
+
+expectations:
+  must_have_pages:
+    - slug: entity/morning-light-cafe
+      page_type: entity
+      title_contains: 晨光咖啡馆
+    - slug: entity/morning-light-baking-class
+      page_type: entity
+      title_contains: 晨光烘焙教室
+  must_not_have_pages:
+    - slug: entity/morning-light
+  must_have_aliases:
+    entity/morning-light-cafe:
+      - 晨光咖啡馆
+      - Morning Light Cafe
+    entity/morning-light-baking-class:
+      - 晨光烘焙教室
+      - Morning Light Baking Class
+  must_have_citations:
+    entity/morning-light-cafe:
+      min_count: 1
+      required_terms:
+        - 咖啡
+    entity/morning-light-baking-class:
+      min_count: 1
+      required_terms:
+        - 烘焙课
+  must_have_relations:
+    - source_slug: entity/morning-light-cafe
+      target_slug: entity/morning-light-baking-class
+      relation_type_contains: 相关
+  must_not_contain:
+    - 两者是同一业务
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

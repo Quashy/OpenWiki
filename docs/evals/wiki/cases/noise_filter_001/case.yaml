@@ -1,0 +1,44 @@
+id: noise_filter_001
+title: 低价值噪音不应抽成实体页
+purpose: 验证活动模板中的页眉、占位符和免责声明不会被当作真实实体或概念页面。
+tags:
+  - noise
+  - extraction
+  - template
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/community-template.md
+    title: 社区活动模板
+
+expectations:
+  must_have_pages:
+    - slug: entity/autumn-yard-sale
+      page_type: entity
+      title_contains: 秋季跳蚤市场
+  must_not_have_pages:
+    - slug: entity/your-name
+    - slug: entity/tbd
+    - slug: concept/disclaimer
+    - slug: concept/page-header
+  must_have_aliases:
+    entity/autumn-yard-sale:
+      - 秋季跳蚤市场
+      - Autumn Yard Sale
+  must_have_citations:
+    entity/autumn-yard-sale:
+      min_count: 1
+      required_terms:
+        - 桂花社区广场
+  must_have_relations: []
+  must_not_contain:
+    - 填写你的姓名
+    - 仅供模板占位
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

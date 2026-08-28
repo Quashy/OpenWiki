@@ -1,0 +1,49 @@
+id: conflict_facts_001
+title: 冲突事实应保留来源差异
+purpose: 验证聚餐时间被更新时，Wiki 页面能区分原计划和新通知，不把冲突事实强行合并成单一结论。
+tags:
+  - conflict
+  - citation
+  - event
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/original-dinner-notice.md
+    title: 原始聚餐通知
+  - path: documents/dinner-update.md
+    title: 聚餐时间更新
+
+expectations:
+  must_have_pages:
+    - slug: entity/weekend-dinner
+      page_type: entity
+      title_contains: 周末聚餐
+    - slug: entity/morning-light-cafe
+      page_type: entity
+      title_contains: 晨光咖啡馆
+  must_not_have_pages: []
+  must_have_aliases:
+    entity/weekend-dinner:
+      - 周末聚餐
+      - 朋友聚餐
+  must_have_citations:
+    entity/weekend-dinner:
+      min_count: 2
+      required_terms:
+        - 周六 18:00
+        - 周日 12:00
+  must_have_relations:
+    - source_slug: entity/weekend-dinner
+      target_slug: entity/morning-light-cafe
+      relation_type_contains: 地点
+  must_not_contain:
+    - 最终时间为周六 18:00
+    - 两个时间都有效
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

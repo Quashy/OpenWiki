@@ -1,0 +1,47 @@
+id: alias_merge_001
+title: 同义实体应合并
+purpose: 验证同一家咖啡店的不同叫法会归并为同一实体页面，而不是生成重复实体。
+tags:
+  - alias
+  - dedup
+  - entity
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/neighborhood-notes.md
+    title: 小区生活群记录
+  - path: documents/receipt-note.md
+    title: 收据备注
+
+expectations:
+  must_have_pages:
+    - slug: entity/morning-light-cafe
+      page_type: entity
+      title_contains: 晨光咖啡
+  must_not_have_pages:
+    - slug: entity/cg-coffee
+    - slug: entity/morning-light
+  must_have_aliases:
+    entity/morning-light-cafe:
+      - 晨光咖啡
+      - CG Coffee
+      - 晨光
+      - Morning Light Cafe
+  must_have_citations:
+    entity/morning-light-cafe:
+      min_count: 2
+      required_terms:
+        - CG Coffee
+        - 同一家店
+  must_have_relations: []
+  must_not_contain:
+    - chunk_
+    - 根据上下文
+    - 无法确认但可能
+  max_dead_links: 0
+  max_self_loops: 0

@@ -1,0 +1,60 @@
+id: cross_doc_relation_001
+title: 跨文档关系应被合成
+purpose: 验证旅行计划中的酒店、车次和景点分散在多个文档时，Wiki 能建立同一次旅行下的关系。
+tags:
+  - cross-document
+  - relation
+  - travel
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/hotel-booking.md
+    title: 酒店预订
+  - path: documents/train-ticket.md
+    title: 火车票信息
+  - path: documents/itinerary.md
+    title: 游玩安排
+
+expectations:
+  must_have_pages:
+    - slug: entity/hangzhou-family-trip
+      page_type: entity
+      title_contains: 杭州家庭旅行
+    - slug: entity/west-lake-garden-hotel
+      page_type: entity
+      title_contains: 西湖花园酒店
+    - slug: entity/g7391
+      page_type: entity
+      title_contains: G7391
+  must_not_have_pages: []
+  must_have_aliases:
+    entity/hangzhou-family-trip:
+      - 杭州家庭旅行
+      - 杭州周末行
+    entity/west-lake-garden-hotel:
+      - 西湖花园酒店
+    entity/g7391:
+      - G7391
+  must_have_citations:
+    entity/hangzhou-family-trip:
+      min_count: 2
+      required_terms:
+        - 西湖花园酒店
+        - G7391
+  must_have_relations:
+    - source_slug: entity/hangzhou-family-trip
+      target_slug: entity/west-lake-garden-hotel
+      relation_type_contains: 住宿
+    - source_slug: entity/hangzhou-family-trip
+      target_slug: entity/g7391
+      relation_type_contains: 交通
+  must_not_contain:
+    - chunk_
+    - 机票
+  max_dead_links: 0
+  max_self_loops: 0

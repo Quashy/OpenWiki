@@ -1,0 +1,46 @@
+id: no_evidence_no_hallucination_001
+title: 无证据内容不得编造
+purpose: 验证宠物寄养说明没有提供价格、疫苗品牌和保险条款时，Wiki 不生成或暗示这些不存在的信息。
+tags:
+  - hallucination
+  - no-evidence
+  - pet-boarding
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/pet-boarding-note.md
+    title: 宠物寄养说明
+
+expectations:
+  must_have_pages:
+    - slug: entity/pet-boarding
+      page_type: entity
+      title_contains: 宠物寄养
+  must_not_have_pages:
+    - slug: entity/pet-boarding-price
+    - slug: entity/vaccine-brand
+    - slug: entity/insurance-policy
+  must_have_aliases:
+    entity/pet-boarding:
+      - 宠物寄养
+      - 寄养安排
+  must_have_citations:
+    entity/pet-boarding:
+      min_count: 1
+      required_terms:
+        - 自带牵引绳
+        - 不接受临时加餐
+  must_have_relations: []
+  must_not_contain:
+    - 每晚
+    - 元/天
+    - 疫苗品牌
+    - 保险赔付
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0

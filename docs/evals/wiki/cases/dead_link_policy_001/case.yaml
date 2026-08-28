@@ -1,0 +1,52 @@
+id: dead_link_policy_001
+title: 双链不能指向不存在页面
+purpose: 验证装修清单中信息不足的材料不会被强行加双链，生成结果不得包含死链。
+tags:
+  - dead-link
+  - postprocess
+  - home-renovation
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 60
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/renovation-list.md
+    title: 阳台装修清单
+
+expectations:
+  must_have_pages:
+    - slug: entity/balcony-renovation
+      page_type: entity
+      title_contains: 阳台装修
+    - slug: entity/anti-slip-floor-tile
+      page_type: entity
+      title_contains: 防滑地砖
+  must_not_have_pages:
+    - slug: entity/screws
+    - slug: entity/plastic-bag
+    - slug: entity/masking-tape
+  must_have_aliases:
+    entity/balcony-renovation:
+      - 阳台装修
+    entity/anti-slip-floor-tile:
+      - 防滑地砖
+      - 灰色防滑砖
+  must_have_citations:
+    entity/anti-slip-floor-tile:
+      min_count: 1
+      required_terms:
+        - 300x300mm
+        - 12 箱
+  must_have_relations:
+    - source_slug: entity/balcony-renovation
+      target_slug: entity/anti-slip-floor-tile
+      relation_type_contains: 使用
+  must_not_contain:
+    - "[[entity/screws|螺丝]]"
+    - "[[entity/plastic-bag|塑料袋]]"
+    - chunk_
+  max_dead_links: 0
+  max_self_loops: 0
