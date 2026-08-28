@@ -62,6 +62,7 @@ class MetricTotals:
     must_have_pages_total: int = 0
     must_have_pages_hit: int = 0
     forbidden_page_violation_count: int = 0
+    slug_policy_violation_count: int = 0
     aliases_total: int = 0
     aliases_hit: int = 0
     citation_requirements_total: int = 0
@@ -79,6 +80,7 @@ class MetricTotals:
             "pass_rate": ratio(passed_cases, total_cases),
             "must_have_page_hit_rate": ratio(self.must_have_pages_hit, self.must_have_pages_total),
             "forbidden_page_violation_count": self.forbidden_page_violation_count,
+            "slug_policy_violation_count": self.slug_policy_violation_count,
             "alias_hit_rate": ratio(self.aliases_hit, self.aliases_total),
             "citation_requirement_pass_rate": ratio(
                 self.citation_requirements_passed,
@@ -95,6 +97,7 @@ class MetricTotals:
         self.must_have_pages_total += other.must_have_pages_total
         self.must_have_pages_hit += other.must_have_pages_hit
         self.forbidden_page_violation_count += other.forbidden_page_violation_count
+        self.slug_policy_violation_count += other.slug_policy_violation_count
         self.aliases_total += other.aliases_total
         self.aliases_hit += other.aliases_hit
         self.citation_requirements_total += other.citation_requirements_total
@@ -483,18 +486,21 @@ def evaluate_case(
     entities_by_slug = {entity.slug: entity for entity in entities}
     entities_by_id = {entity.id: entity for entity in entities}
     page_text_by_slug = {page.slug: page_text(page) for page in pages}
+    resolved_pages_by_expected_slug: dict[str, WikiPage] = {}
+    resolved_slug_by_expected_slug: dict[str, str] = {}
 
     for expected in expectations.get("must_have_pages", []):
         slug = str(expected["slug"])
         totals.must_have_pages_total += 1
-        page = pages_by_slug.get(slug)
-        hit = page is not None
-        if hit and expected.get("page_type"):
-            hit = page.page_type == expected["page_type"]
-        if hit and expected.get("title_contains"):
-            hit = str(expected["title_contains"]) in page.title
-        if hit:
+        page = resolve_expected_page(expected, pages_by_slug=pages_by_slug, pages=pages)
+        if page is not None:
             totals.must_have_pages_hit += 1
+            resolved_pages_by_expected_slug[slug] = page
+            resolved_slug_by_expected_slug[slug] = page.slug
+            slug_policy_failure = validate_slug_policy(expected, page)
+            if slug_policy_failure:
+                totals.slug_policy_violation_count += 1
+                failures.append(slug_policy_failure)
         else:
             failures.append(f"missing expected page: {slug}")
 
@@ -505,17 +511,17 @@ def evaluate_case(
             failures.append(f"forbidden page exists: {slug}")
 
     for slug, aliases in expectations.get("must_have_aliases", {}).items():
-        page = pages_by_slug.get(str(slug))
-        actual = set(page.aliases or []) if page is not None else set()
+        page = resolved_pages_by_expected_slug.get(str(slug)) or pages_by_slug.get(str(slug))
+        actual = list(page.aliases or []) if page is not None else []
         for alias in aliases:
             totals.aliases_total += 1
-            if alias in actual:
+            if alias_matches(str(alias), actual):
                 totals.aliases_hit += 1
             else:
                 failures.append(f"missing alias on {slug}: {alias}")
 
     for slug, requirement in expectations.get("must_have_citations", {}).items():
-        page = pages_by_slug.get(str(slug))
+        page = resolved_pages_by_expected_slug.get(str(slug)) or pages_by_slug.get(str(slug))
         min_count = int(requirement.get("min_count", 1))
         totals.citation_requirements_total += 1
         if page is not None and len(page.source_refs or []) >= min_count:
@@ -524,14 +530,16 @@ def evaluate_case(
             failures.append(f"citation requirement failed on {slug}: min_count={min_count}")
         for term in requirement.get("required_terms", []):
             totals.required_terms_total += 1
-            if page is not None and str(term) in page_text_by_slug.get(str(slug), ""):
+            if page is not None and str(term) in page_text_by_slug.get(page.slug, ""):
                 totals.required_terms_hit += 1
             else:
                 failures.append(f"missing required term on {slug}: {term}")
 
     for expected in expectations.get("must_have_relations", []):
-        source_slug = str(expected["source_slug"])
-        target_slug = str(expected["target_slug"])
+        expected_source_slug = str(expected["source_slug"])
+        expected_target_slug = str(expected["target_slug"])
+        source_slug = resolved_slug_by_expected_slug.get(expected_source_slug, expected_source_slug)
+        target_slug = resolved_slug_by_expected_slug.get(expected_target_slug, expected_target_slug)
         relation_type_contains = expected.get("relation_type_contains")
         totals.relations_total += 1
         if relation_exists(
@@ -543,7 +551,7 @@ def evaluate_case(
         ):
             totals.relations_hit += 1
         else:
-            failures.append(f"missing relation: {source_slug} -> {target_slug}")
+            failures.append(f"missing relation: {expected_source_slug} -> {expected_target_slug}")
 
     valid_slugs = set(pages_by_slug)
     for page in pages:
@@ -571,6 +579,7 @@ def evaluate_case(
     passed = (
         totals.must_have_pages_hit == totals.must_have_pages_total
         and totals.forbidden_page_violation_count == 0
+        and totals.slug_policy_violation_count == 0
         and totals.aliases_hit == totals.aliases_total
         and totals.citation_requirements_passed == totals.citation_requirements_total
         and totals.relations_hit == totals.relations_total
@@ -585,6 +594,101 @@ def evaluate_case(
         "failures": failures,
         "totals": totals,
     }
+
+
+def resolve_expected_page(
+    expected: dict[str, Any],
+    *,
+    pages_by_slug: dict[str, WikiPage],
+    pages: list[WikiPage],
+) -> WikiPage | None:
+    expected_slug = str(expected["slug"])
+    exact_page = pages_by_slug.get(expected_slug)
+    if exact_page is not None and page_matches_expected_identity(exact_page, expected):
+        return exact_page
+
+    matches = [page for page in pages if page_matches_expected_identity(page, expected)]
+    if not matches:
+        return None
+    return sorted(matches, key=lambda page: (page.slug != expected_slug, len(page.slug), page.slug))[0]
+
+
+def page_matches_expected_identity(page: WikiPage, expected: dict[str, Any]) -> bool:
+    page_type = expected.get("page_type")
+    if page_type and page.page_type != page_type:
+        return False
+
+    match_terms: list[str] = []
+    if expected.get("title_contains"):
+        match_terms.append(str(expected["title_contains"]))
+
+    match_any = expected.get("match_any")
+    if isinstance(match_any, dict):
+        for key in ("title_contains", "aliases_contains"):
+            value = match_any.get(key)
+            if isinstance(value, list):
+                match_terms.extend(str(item) for item in value)
+            elif value:
+                match_terms.append(str(value))
+
+    if not match_terms:
+        return page.slug == str(expected["slug"])
+
+    return any(page_surface_contains(page, term) for term in match_terms)
+
+
+def page_surface_contains(page: WikiPage, term: str) -> bool:
+    normalized_term = normalize_text(term)
+    if not normalized_term:
+        return False
+    surfaces = [page.title, *(page.aliases or [])]
+    return any(normalized_term in normalize_text(surface) for surface in surfaces)
+
+
+def validate_slug_policy(expected: dict[str, Any], page: WikiPage) -> str | None:
+    expected_slug = str(expected["slug"])
+    expected_page_type = str(expected.get("page_type") or "")
+    if expected_page_type in {"entity", "concept"}:
+        expected_prefix = f"{expected_page_type}/"
+        if not page.slug.startswith(expected_prefix):
+            return f"slug policy violation on {expected_slug}: expected {expected_prefix} prefix, got {page.slug}"
+        if (
+            page.slug != expected_slug
+            and identifier_primary_slug(page.slug)
+            and not identifier_primary_slug(expected_slug)
+        ):
+            return f"slug policy violation on {expected_slug}: high-entropy identifier used as primary slug: {page.slug}"
+    return None
+
+
+def identifier_primary_slug(slug: str) -> bool:
+    base = slug.rsplit("/", 1)[-1]
+    digit_count = sum(char.isdigit() for char in base)
+    alpha_count = sum(char.isalpha() for char in base)
+    if re.fullmatch(r"[0-9a-f]{12,}", base):
+        return True
+    if digit_count >= 6:
+        return True
+    return digit_count >= 4 and alpha_count >= 2
+
+
+def alias_matches(expected_alias: str, actual_aliases: list[str]) -> bool:
+    normalized_expected = normalize_text(expected_alias)
+    if not normalized_expected:
+        return False
+    for actual_alias in actual_aliases:
+        normalized_actual = normalize_text(actual_alias)
+        if normalized_expected == normalized_actual:
+            return True
+        if (identifier_primary_slug(normalized_expected) or len(normalized_expected) >= 4) and (
+            normalized_expected in normalized_actual
+        ):
+            return True
+    return False
+
+
+def normalize_text(value: str) -> str:
+    return re.sub(r"\s+", " ", str(value).strip().casefold())
 
 
 def relation_exists(

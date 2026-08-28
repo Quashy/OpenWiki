@@ -73,6 +73,11 @@ expectations:
     - slug: entity/example
       page_type: entity
       title_contains: 示例
+      match_any:
+        title_contains:
+          - 示例
+        aliases_contains:
+          - Example
   must_not_have_pages:
     - slug: entity/duplicate-example
   must_have_aliases:
@@ -145,11 +150,12 @@ expectations:
 
 ## 断言语义
 
-- `must_have_pages`：生成结果中必须存在指定 slug 与页面类型；`title_contains` 用于允许标题有轻微差异。
+- `must_have_pages`：生成结果中必须存在同一身份的页面。runner 优先按 `slug` 精确匹配；未命中时按 `page_type`、`title_contains` 以及可选 `match_any.title_contains` / `match_any.aliases_contains` 匹配页面标题或别名。`slug` 仍表示期望的规范 slug，但不再是页面存在性的唯一判断条件。
+- `slug_policy_violation_count`：页面身份命中后单独检查 slug 策略。entity/concept 页面必须使用对应 `entity/` 或 `concept/` 前缀；若期望 slug 是语义 slug，而实际 slug 使用订单号、预约号、取件码等高熵编号作为主身份，也计为策略违规。
 - `must_not_have_pages`：生成结果中不得存在这些重复、噪音或无证据页面。
-- `must_have_aliases`：指定页面的 aliases 必须包含列出的名称。
-- `must_have_citations`：指定页面至少需要引用 `min_count` 个来源；`required_terms` 用于辅助检查引用内容是否覆盖实质证据。
-- `must_have_relations`：图谱中必须存在源实体到目标实体的关系；`relation_type_contains` 允许关系名称不同但语义接近。
+- `must_have_aliases`：指定页面的 aliases 必须包含列出的名称。若 `must_have_pages` 通过身份匹配解析到不同实际 slug，alias 断言会跟随该实际页面执行。
+- `must_have_citations`：指定页面至少需要引用 `min_count` 个来源；`required_terms` 用于辅助检查引用内容是否覆盖实质证据。若页面通过身份匹配解析到不同实际 slug，引用和关键术语断言会跟随该实际页面执行。
+- `must_have_relations`：图谱中必须存在源实体到目标实体的关系；`relation_type_contains` 允许关系名称不同但语义接近。若源或目标页面通过身份匹配解析到不同实际 slug，关系断言会使用解析后的实际 slug。
 - `must_not_contain`：任何生成页面正文都不得包含这些内部标记、模板话术或无依据内容。
 - `max_dead_links`：Post-process 后允许的最大死链数量，当前所有 case 均为 0。
 - `max_self_loops`：图谱允许的最大自链数量，当前所有 case 均为 0。
@@ -253,7 +259,7 @@ $env:PYTHONPATH="backend"; $env:LANGFUSE_HOST=""; $env:LANGFUSE_PUBLIC_KEY=""; $
 $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_merge_001
 ```
 
-评估报告默认写入 `reports/wiki-evals/`，包含同名 JSON 和 Markdown。报告记录 `pass_rate`、`must_have_page_hit_rate`、`forbidden_page_violation_count`、`alias_hit_rate`、`citation_requirement_pass_rate`、`relation_hit_rate`、`dead_link_count`、`self_loop_count`、`forbidden_content_count`、`required_term_hit_rate`、每个 case 的任务信息、trace_id、失败断言和关键页面摘要。
+评估报告默认写入 `reports/wiki-evals/`，包含同名 JSON 和 Markdown。报告记录 `pass_rate`、`must_have_page_hit_rate`、`forbidden_page_violation_count`、`slug_policy_violation_count`、`alias_hit_rate`、`citation_requirement_pass_rate`、`relation_hit_rate`、`dead_link_count`、`self_loop_count`、`forbidden_content_count`、`required_term_hit_rate`、每个 case 的任务信息、trace_id、失败断言和关键页面摘要。
 
 报告还记录 `prompt_family`、`prompt_version`、LLM provider/model、embedding provider/model，方便后续 Dedup 或 prompt 调整后做同口径对比。
 
