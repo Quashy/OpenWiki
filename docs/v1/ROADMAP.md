@@ -1,10 +1,10 @@
 # OpenWiki V2 v1 开发路线图
 
-> 版本：v2.5
+> 版本：v2.6
 > 日期：2026-08-28
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.5 — M4 数据集拆为 Micro Eval 与 Scenario Eval 两层：Micro 用小而尖锐的 case 做快速回归，Scenario 用中等生活场景包做真实复杂度验收。
+> 变更：v2.6 — M4 Scenario Eval 首批 3 个中等生活场景包已落地，并完成结构静态校验。
 
 ---
 
@@ -94,7 +94,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 未开始 | 数据集 case、确定性指标、真实 DeepSeek eval runner、prompt 抽取、Reduce/Citation 强化、Dedup、prompt version trace、质量报告通过 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；其余为 eval runner、prompt 抽取、Dedup、prompt version trace、质量报告 |
 | M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | 复用 Wiki eval questions、SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
@@ -332,6 +332,14 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
   - Overview/Post-process：LLM 只负责综述或索引导言；死链清理、交叉链接注入优先走确定性代码。
 - 新增 Dedup pass：位于 Extract 之后、Citation 之前，只在高置信同义条件下合并。
 - 保留 pytest 的 fake provider 快速回归；真实 Key 只用于本地评估脚本和人工验收，避免 CI 依赖外部 LLM 稳定性和成本。
+
+**推进记录（2026-08-28）**
+
+- Scenario Eval：新增 `family_trip_001`、`community_property_001`、`home_renovation_001` 三个中等生活场景包。
+- 数据规模：3 个 scenario、18 个输入文档、18 个问题；每个 scenario 各 6 个文档、6 个问题。
+- 覆盖能力：每个 scenario 都包含多文档综合题、关系题、冲突或变更题、参数/编号事实题和无答案题。
+- 结构化断言：每个 scenario 的 `expectations` 都包含页面、引用、关系、禁止内容、死链和自链约束。
+- 静态校验：Scenario Eval 结构校验通过，输出 `validated 3 scenarios, 18 documents, 18 questions`。本轮为文档型数据集，不跑后端 pytest。
 
 **推荐实施顺序**
 

@@ -1,0 +1,198 @@
+id: family_trip_001
+title: 家庭旅行资料包
+purpose: 验证中等规模家庭旅行资料下的多文档聚合、变更识别、关系图谱和后续 QA 召回稳定性。
+tags:
+  - scenario
+  - travel
+  - cross-document
+  - qa
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 90
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/hotel-booking.md
+    title: 酒店预订
+  - path: documents/train-ticket.md
+    title: 火车票信息
+  - path: documents/itinerary.md
+    title: 行程安排
+  - path: documents/budget.md
+    title: 旅行预算
+  - path: documents/change-notice.md
+    title: 行程变更通知
+  - path: documents/packing-note.md
+    title: 行李备忘
+
+questions:
+  - id: q_trip_hotel_fact
+    question: 这次杭州家庭旅行的酒店订单号、入住时间和酒店地址是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - HZ-FAM-240913
+      - 2026-10-03
+      - 湖滨路 88 号
+    expected_citation_terms:
+      - HZ-FAM-240913
+      - 湖滨路 88 号
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 上海
+  - id: q_trip_budget_fact
+    question: 旅行总预算上限是多少，哪些费用已经确认或支付？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 4200 元
+      - 酒店 1360 元已支付
+      - 去程火车票 486 元
+    expected_citation_terms:
+      - 4200 元
+      - 酒店 1360 元已支付
+      - 去程火车票 486 元
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 5000 元
+  - id: q_trip_summary
+    question: 这次旅行的住宿、去程交通和主要行程是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 湖畔亲子公寓
+      - G7391
+      - 良渚博物院
+    expected_citation_terms:
+      - 湖畔亲子公寓
+      - G7391
+      - 良渚博物院
+    expected_sources:
+      min_count: 3
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 返程车票已购买
+  - id: q_trip_relations
+    question: 杭州亲子秋游分别和哪家酒店、哪趟列车、哪个预约景点有关？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 湖畔亲子公寓
+      - G7391
+      - 良渚博物院
+    expected_citation_terms:
+      - 湖畔亲子公寓
+      - G7391
+      - 良渚博物院
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 西溪湿地夜游
+  - id: q_trip_change
+    question: 10 月 4 日上午的原计划和最新安排有什么变化？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 西湖游船取消
+      - 改为室内手作课
+      - 良渚博物院预约不变
+    expected_citation_terms:
+      - 西湖游船取消
+      - 改为室内手作课
+      - 良渚博物院预约不变
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 西湖游船照常
+  - id: q_trip_no_answer
+    question: 这次旅行需要携带护照吗，儿童票证件号码是多少？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms:
+      - 所有乘客需携带身份证或户口本原件
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 护照号
+      - 儿童票证件号码
+
+expectations:
+  must_have_pages:
+    - slug: entity/hangzhou-family-autumn-trip
+      page_type: entity
+      title_contains: 杭州亲子秋游
+    - slug: entity/lakeside-family-apartment
+      page_type: entity
+      title_contains: 湖畔亲子公寓
+    - slug: entity/g7391
+      page_type: entity
+      title_contains: G7391
+    - slug: entity/liangzhu-museum
+      page_type: entity
+      title_contains: 良渚博物院
+    - slug: concept/trip-budget
+      page_type: concept
+      title_contains: 旅行预算
+  must_not_have_pages:
+    - slug: entity/passport
+    - slug: entity/return-train-ticket
+  must_have_aliases:
+    entity/hangzhou-family-autumn-trip:
+      - 杭州亲子秋游
+      - 杭州家庭旅行
+    entity/lakeside-family-apartment:
+      - 湖畔亲子公寓
+    entity/g7391:
+      - G7391
+    entity/liangzhu-museum:
+      - 良渚博物院
+  must_have_citations:
+    entity/hangzhou-family-autumn-trip:
+      min_count: 4
+      required_terms:
+        - 湖畔亲子公寓
+        - G7391
+        - 西湖游船取消
+        - 4200 元
+    entity/lakeside-family-apartment:
+      min_count: 1
+      required_terms:
+        - HZ-FAM-240913
+    concept/trip-budget:
+      min_count: 1
+      required_terms:
+        - 酒店 1360 元已支付
+  must_have_relations:
+    - source_slug: entity/hangzhou-family-autumn-trip
+      target_slug: entity/lakeside-family-apartment
+      relation_type_contains: 住宿
+    - source_slug: entity/hangzhou-family-autumn-trip
+      target_slug: entity/g7391
+      relation_type_contains: 交通
+    - source_slug: entity/hangzhou-family-autumn-trip
+      target_slug: entity/liangzhu-museum
+      relation_type_contains: 行程
+  must_not_contain:
+    - chunk_
+    - 护照号
+    - 返程车票已购买
+    - 西湖游船照常
+  max_dead_links: 0
+  max_self_loops: 0

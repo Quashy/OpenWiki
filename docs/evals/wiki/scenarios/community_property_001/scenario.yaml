@@ -1,0 +1,199 @@
+id: community_property_001
+title: 小区物业资料包
+purpose: 验证小区物业资料中的维修、门禁、活动、投诉、费用和联系人信息能被跨文档聚合，并能区分变更和未提供事实。
+tags:
+  - scenario
+  - community
+  - property
+  - qa
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 90
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/repair-notice.md
+    title: 维修通知
+  - path: documents/access-control.md
+    title: 门禁调整
+  - path: documents/activity-plan.md
+    title: 社区活动计划
+  - path: documents/complaint-log.md
+    title: 投诉处理记录
+  - path: documents/fee-notice.md
+    title: 费用通知
+  - path: documents/contact-list.md
+    title: 联系人清单
+
+questions:
+  - id: q_property_repair_fact
+    question: 7 号楼水泵维修的时间、影响范围和施工单位是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 2026-09-12 09:00-13:00
+      - 7 号楼 4 至 12 层
+      - 安澜设备维修
+    expected_citation_terms:
+      - 2026-09-12 09:00-13:00
+      - 7 号楼 4 至 12 层
+      - 安澜设备维修
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 电梯更换
+  - id: q_property_fee_fact
+    question: 物业费标准、缴费截止日和滞纳金开始日期分别是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 2.8 元/平方米/月
+      - 2026-09-30
+      - 2026-10-16
+    expected_citation_terms:
+      - 2.8 元/平方米/月
+      - 2026-09-30
+      - 2026-10-16
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 3.5 元
+  - id: q_property_summary
+    question: 9 月小区有哪些维修、门禁和社区活动安排？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 水泵维修
+      - 人脸门禁试运行
+      - 中秋跳蚤市集
+    expected_citation_terms:
+      - 水泵维修
+      - 人脸门禁试运行
+      - 中秋跳蚤市集
+    expected_sources:
+      min_count: 3
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 游泳池开放
+  - id: q_property_relations
+    question: 物业服务中心分别和水泵维修、门禁登记、费用缴纳有什么关系？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 协调水泵维修
+      - 登记人脸门禁
+      - 收取物业费
+    expected_citation_terms:
+      - 物业服务中心
+      - 水泵维修
+      - 人脸门禁
+      - 物业费
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 居委会收款
+  - id: q_property_change
+    question: 门禁卡和人脸门禁的过渡安排是什么，旧门禁卡何时停止默认通行？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 人脸门禁 2026-09-15 试运行
+      - 旧门禁卡可用到 2026-09-30
+      - 2026-10-01 起未登记住户需到岗核验
+    expected_citation_terms:
+      - 2026-09-15
+      - 2026-09-30
+      - 2026-10-01 起未登记住户需到岗核验
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 旧门禁卡立即停用
+  - id: q_property_no_answer
+    question: 小区游泳池今年什么时候开放，儿童票是多少钱？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms:
+      - 本资料包未发布游泳池开放时间、票价或报名规则
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 儿童票
+      - 30 元
+
+expectations:
+  must_have_pages:
+    - slug: entity/property-service-center
+      page_type: entity
+      title_contains: 物业服务中心
+    - slug: entity/building-7-pump-repair
+      page_type: entity
+      title_contains: 7 号楼水泵维修
+    - slug: concept/face-access-control
+      page_type: concept
+      title_contains: 人脸门禁
+    - slug: entity/mid-autumn-flea-market
+      page_type: entity
+      title_contains: 中秋跳蚤市集
+    - slug: concept/property-fee
+      page_type: concept
+      title_contains: 物业费
+  must_not_have_pages:
+    - slug: entity/swimming-pool
+    - slug: concept/children-ticket
+  must_have_aliases:
+    entity/property-service-center:
+      - 物业服务中心
+      - 北苑物业
+    entity/building-7-pump-repair:
+      - 7 号楼水泵维修
+      - 水泵维修
+    concept/face-access-control:
+      - 人脸门禁
+    entity/mid-autumn-flea-market:
+      - 中秋跳蚤市集
+  must_have_citations:
+    entity/building-7-pump-repair:
+      min_count: 1
+      required_terms:
+        - 2026-09-12 09:00-13:00
+        - 安澜设备维修
+    concept/face-access-control:
+      min_count: 1
+      required_terms:
+        - 旧门禁卡可用到 2026-09-30
+    concept/property-fee:
+      min_count: 1
+      required_terms:
+        - 2.8 元/平方米/月
+  must_have_relations:
+    - source_slug: entity/property-service-center
+      target_slug: entity/building-7-pump-repair
+      relation_type_contains: 协调
+    - source_slug: entity/property-service-center
+      target_slug: concept/face-access-control
+      relation_type_contains: 登记
+    - source_slug: entity/property-service-center
+      target_slug: concept/property-fee
+      relation_type_contains: 收取
+  must_not_contain:
+    - chunk_
+    - 儿童票
+    - 游泳池 2026-09
+    - 旧门禁卡立即停用
+  max_dead_links: 0
+  max_self_loops: 0

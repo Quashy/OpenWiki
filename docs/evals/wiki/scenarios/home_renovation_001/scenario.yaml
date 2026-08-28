@@ -1,0 +1,218 @@
+id: home_renovation_001
+title: 家庭装修资料包
+purpose: 验证家庭装修资料中的材料、施工、预算、验收、售后和责任人信息能保持参数保真，并能处理预算变更和待整改事项。
+tags:
+  - scenario
+  - renovation
+  - cross-document
+  - qa
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 90
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/purchase-list.md
+    title: 采购清单
+  - path: documents/construction-schedule.md
+    title: 施工排期
+  - path: documents/material-specs.md
+    title: 材料规格
+  - path: documents/budget-change.md
+    title: 预算变更
+  - path: documents/acceptance-record.md
+    title: 验收记录
+  - path: documents/after-sale-note.md
+    title: 售后说明
+
+questions:
+  - id: q_renovation_contract_fact
+    question: 装修采购清单的合同编号、主要采购项和业主是谁？
+    expected_behavior: answer
+    expected_answer_contains:
+      - ZR-2026-0818
+      - 厨房地柜
+      - 王晨
+    expected_citation_terms:
+      - ZR-2026-0818
+      - 厨房地柜
+      - 王晨
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 智能门锁
+  - id: q_renovation_material_fact
+    question: 卫生间防水和客厅瓷砖的关键规格是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - JS-II 型
+      - 两遍涂刷
+      - HX-612
+      - 600x1200mm
+    expected_citation_terms:
+      - JS-II 型
+      - 两遍涂刷
+      - HX-612
+      - 600x1200mm
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 实木地板
+  - id: q_renovation_summary
+    question: 这次装修的施工排期、预算变更和验收待整改项是什么？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 2026-08-23 至 2026-08-25 水电改造
+      - 最终预算 58560 元
+      - 厨房墙砖空鼓 2 处
+    expected_citation_terms:
+      - 水电改造
+      - 最终预算 58560 元
+      - 厨房墙砖空鼓 2 处
+    expected_sources:
+      min_count: 3
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 验收全部通过
+  - id: q_renovation_relations
+    question: 赵工、王晨、橙木橱柜和卫生间防水分别承担什么关系或责任？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 赵工负责施工协调
+      - 王晨确认预算变更
+      - 橙木橱柜负责柜门更换
+      - 卫生间防水保修 2 年
+    expected_citation_terms:
+      - 赵工
+      - 王晨
+      - 橙木橱柜
+      - 防水保修 2 年
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 物业负责橱柜
+  - id: q_renovation_change
+    question: 装修预算从原始预算到最终预算发生了哪些增减项？
+    expected_behavior: answer
+    expected_answer_contains:
+      - 原始预算 58000 元
+      - 增加防水加强 1200 元
+      - 增加橱柜五金 860 元
+      - 取消阳台吊柜 -1500 元
+      - 最终预算 58560 元
+    expected_citation_terms:
+      - 原始预算 58000 元
+      - 防水加强 1200 元
+      - 橱柜五金 860 元
+      - 取消阳台吊柜 -1500 元
+      - 最终预算 58560 元
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 最终预算 60560 元
+  - id: q_renovation_no_answer
+    question: 智能门锁的品牌、安装时间和保修期限是什么？
+    expected_behavior: no_answer
+    expected_answer_contains:
+      - 无法从知识库确认
+    expected_citation_terms:
+      - 本次资料没有采购智能门锁
+    expected_sources:
+      min_count: 1
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain:
+      - 鹿客
+      - 3 年保修
+
+expectations:
+  must_have_pages:
+    - slug: entity/home-renovation-project
+      page_type: entity
+      title_contains: 家庭装修
+    - slug: entity/wang-chen
+      page_type: entity
+      title_contains: 王晨
+    - slug: entity/foreman-zhao
+      page_type: entity
+      title_contains: 赵工
+    - slug: entity/orange-wood-cabinet
+      page_type: entity
+      title_contains: 橙木橱柜
+    - slug: concept/bathroom-waterproofing
+      page_type: concept
+      title_contains: 卫生间防水
+    - slug: concept/renovation-budget-change
+      page_type: concept
+      title_contains: 装修预算变更
+  must_not_have_pages:
+    - slug: entity/smart-door-lock
+    - slug: entity/solid-wood-floor
+  must_have_aliases:
+    entity/home-renovation-project:
+      - 家庭装修
+      - 王晨家装修
+    entity/wang-chen:
+      - 王晨
+    entity/foreman-zhao:
+      - 赵工
+    entity/orange-wood-cabinet:
+      - 橙木橱柜
+    concept/bathroom-waterproofing:
+      - 卫生间防水
+  must_have_citations:
+    entity/home-renovation-project:
+      min_count: 4
+      required_terms:
+        - ZR-2026-0818
+        - 水电改造
+        - 最终预算 58560 元
+        - 厨房墙砖空鼓 2 处
+    concept/bathroom-waterproofing:
+      min_count: 1
+      required_terms:
+        - JS-II 型
+        - 闭水试验 48 小时
+    entity/orange-wood-cabinet:
+      min_count: 1
+      required_terms:
+        - 柜门划痕
+        - 2026-09-22
+  must_have_relations:
+    - source_slug: entity/home-renovation-project
+      target_slug: entity/wang-chen
+      relation_type_contains: 业主
+    - source_slug: entity/home-renovation-project
+      target_slug: entity/foreman-zhao
+      relation_type_contains: 施工
+    - source_slug: entity/home-renovation-project
+      target_slug: concept/bathroom-waterproofing
+      relation_type_contains: 包含
+    - source_slug: entity/orange-wood-cabinet
+      target_slug: entity/home-renovation-project
+      relation_type_contains: 售后
+  must_not_contain:
+    - chunk_
+    - 鹿客
+    - 凯迪仕
+    - 最终预算 60560 元
+    - 验收全部通过
+  max_dead_links: 0
+  max_self_loops: 0

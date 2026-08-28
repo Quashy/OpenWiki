@@ -7,15 +7,30 @@
 ```text
 docs/evals/wiki/
   README.md
-  cases/
+  cases/                  # Micro Eval
     <case_id>/
       case.yaml
       documents/
         *.md
         *.txt
+  scenarios/              # Scenario Eval
+    <scenario_id>/
+      scenario.yaml
+      documents/
+        *.md
+        *.txt
 ```
 
-每个 case 必须独立运行，不依赖其他 case 的输入文档或生成结果。后续 eval runner 应以 `case.yaml` 作为唯一入口，读取 `documents` 中列出的文件，创建临时 Source KB / Wiki KB，运行 Wiki ingest，然后执行结构化断言。
+每个 case 或 scenario 必须独立运行，不依赖其他输入包的文档或生成结果。后续 eval runner 应以 `case.yaml` 或 `scenario.yaml` 作为唯一入口，读取 `documents` 中列出的文件，创建临时 Source KB / Wiki KB，运行 Wiki ingest，然后执行结构化断言。
+
+## Micro Eval 与 Scenario Eval
+
+| 类型 | 目录 | 规模 | 目标 |
+|---|---|---|---|
+| Micro Eval | `cases/` | 每个 case 1-3 个短文档、1-2 个问题 | 快速回归尖锐边界：同义实体、相似但不同、冲突事实、引用约束、死链、自链、空证据不编造 |
+| Scenario Eval | `scenarios/` | 每个 scenario 5-10 个文档、5-8 个问题 | 验证更真实复杂度：多文档聚合、多实体关系、变更通知、参数保真和后续 QA 召回稳定性 |
+
+M4 只验证两类数据集字段可解析和结构化断言可执行；M5 QA eval 复用同一批 `questions` 执行问答断言。
 
 ## case.yaml 字段
 
@@ -78,6 +93,56 @@ expectations:
   max_self_loops: 0
 ```
 
+## scenario.yaml 字段
+
+`scenario.yaml` 与 `case.yaml` 使用同一套顶层字段和断言语义，但场景包规模更大，问题固定覆盖事实、参数、跨文档综合、关系、冲突或变更、无答案六类。
+
+```yaml
+id: family_trip_001
+title: 家庭旅行资料包
+purpose: 验证中等规模生活资料下的多文档聚合、关系图谱和后续 QA 召回稳定性
+tags:
+  - scenario
+  - travel
+  - cross-document
+  - qa
+
+wiki_config:
+  auto_ingest: false
+  llm_timeout_seconds: 90
+  llm_max_retries: 3
+  temperature: 0.2
+
+documents:
+  - path: documents/hotel-booking.md
+    title: 酒店预订
+  - path: documents/train-ticket.md
+    title: 火车票信息
+
+questions:
+  - id: q_trip_summary
+    question: 这次旅行的住宿、去程交通和主要行程是什么？
+    expected_behavior: answer
+    expected_answer_contains: []
+    expected_citation_terms: []
+    expected_sources:
+      min_count: 2
+      allowed_types:
+        - document
+        - wiki_page
+    must_not_contain: []
+
+expectations:
+  must_have_pages: []
+  must_not_have_pages: []
+  must_have_aliases: {}
+  must_have_citations: {}
+  must_have_relations: []
+  must_not_contain: []
+  max_dead_links: 0
+  max_self_loops: 0
+```
+
 ## 断言语义
 
 - `must_have_pages`：生成结果中必须存在指定 slug 与页面类型；`title_contains` 用于允许标题有轻微差异。
@@ -106,7 +171,9 @@ expectations:
 
 首批 10 个 case 覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、低价值噪音、引用约束、死链约束、图谱自链、空证据不编造。
 
-这些 case 只定义评估输入和期望，不直接调用真实 LLM。真实 DeepSeek 评估由后续本地 eval runner 执行，不进入 CI 默认路径。
+首批 3 个 scenario 覆盖家庭旅行、小区物业和家庭装修，补足 Micro Eval 覆盖不到的多文档聚合、多实体关系、冲突/变更事实、参数保真和 QA 召回稳定性。
+
+这些 case 和 scenario 只定义评估输入和期望，不直接调用真实 LLM。真实 DeepSeek 评估由后续本地 eval runner 执行，不进入 CI 默认路径。
 
 ## 本地评估命令
 
@@ -114,6 +181,50 @@ expectations:
 
 ```powershell
 $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --dry-run
+```
+
+校验 Scenario Eval 结构：
+
+```powershell
+$script = @'
+from pathlib import Path
+import yaml
+
+root = Path("docs/evals/wiki/scenarios")
+scenarios = sorted(path for path in root.iterdir() if path.is_dir())
+required = {"id", "title", "purpose", "tags", "wiki_config", "documents", "questions", "expectations"}
+expectation_fields = {
+    "must_have_pages",
+    "must_not_have_pages",
+    "must_have_aliases",
+    "must_have_citations",
+    "must_have_relations",
+    "must_not_contain",
+    "max_dead_links",
+    "max_self_loops",
+}
+document_count = 0
+question_count = 0
+
+for s in scenarios:
+    scenario_path = s / "scenario.yaml"
+    assert scenario_path.exists(), f"{scenario_path} not found"
+    data = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    missing = required - set(data)
+    assert not missing, (s, missing)
+    assert data["id"] == s.name, s
+    assert 5 <= len(data["documents"]) <= 10, s
+    assert 5 <= len(data["questions"]) <= 8, s
+    missing_expectations = expectation_fields - set(data["expectations"])
+    assert not missing_expectations, (s, missing_expectations)
+    for item in data["documents"]:
+        assert (s / item["path"]).exists(), (s, item["path"])
+    document_count += len(data["documents"])
+    question_count += len(data["questions"])
+
+print(f"validated {len(scenarios)} scenarios, {document_count} documents, {question_count} questions")
+'@
+$script | python -
 ```
 
 运行全部 case，会调用真实 DeepSeek、Ollama embedding 和当前数据库：
