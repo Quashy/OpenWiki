@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import type { AuthResponse, User, Workspace, WorkspaceMember } from "../api/m1";
+import { authStorageKeys, clearStoredAuth, getStoredAccessToken } from "./authStorage";
 
 type AuthState = {
   user: User | null;
@@ -23,19 +24,39 @@ function readJson<T>(key: string): T | null {
   }
 }
 
+function readInitialAuth() {
+  const user = readJson<User>(authStorageKeys.user);
+  const accessToken = getStoredAccessToken();
+  if (!user || !accessToken) {
+    clearStoredAuth();
+    return { user: null, workspace: null, membership: null };
+  }
+  return {
+    user,
+    workspace: readJson<Workspace>(authStorageKeys.workspace),
+    membership: readJson<WorkspaceMember>(authStorageKeys.membership),
+  };
+}
+
+const initialAuth = readInitialAuth();
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: readJson<User>("openwiki.user"),
-  workspace: readJson<Workspace>("openwiki.workspace"),
-  membership: readJson<WorkspaceMember>("openwiki.membership"),
+  user: initialAuth.user,
+  workspace: initialAuth.workspace,
+  membership: initialAuth.membership,
   setAuth: (auth) => {
-    localStorage.setItem("openwiki.access_token", auth.tokens.access_token);
-    localStorage.setItem("openwiki.refresh_token", auth.tokens.refresh_token);
-    localStorage.setItem("openwiki.user", JSON.stringify(auth.user));
+    localStorage.setItem(authStorageKeys.accessToken, auth.tokens.access_token);
+    localStorage.setItem(authStorageKeys.refreshToken, auth.tokens.refresh_token);
+    localStorage.setItem(authStorageKeys.user, JSON.stringify(auth.user));
     if (auth.workspace) {
-      localStorage.setItem("openwiki.workspace", JSON.stringify(auth.workspace));
+      localStorage.setItem(authStorageKeys.workspace, JSON.stringify(auth.workspace));
+    } else {
+      localStorage.removeItem(authStorageKeys.workspace);
     }
     if (auth.membership) {
-      localStorage.setItem("openwiki.membership", JSON.stringify(auth.membership));
+      localStorage.setItem(authStorageKeys.membership, JSON.stringify(auth.membership));
+    } else {
+      localStorage.removeItem(authStorageKeys.membership);
     }
     set({
       user: auth.user,
@@ -44,17 +65,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     });
   },
   setWorkspace: (workspace) => {
-    localStorage.setItem("openwiki.workspace", JSON.stringify(workspace));
+    localStorage.setItem(authStorageKeys.workspace, JSON.stringify(workspace));
     set({ workspace });
   },
   logout: () => {
-    [
-      "openwiki.access_token",
-      "openwiki.refresh_token",
-      "openwiki.user",
-      "openwiki.workspace",
-      "openwiki.membership",
-    ].forEach((key) => localStorage.removeItem(key));
+    clearStoredAuth();
     set({ user: null, workspace: null, membership: null });
   },
 }));
+
+window.addEventListener("openwiki.auth.invalid", () => {
+  useAuthStore.getState().logout();
+});
