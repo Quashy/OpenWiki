@@ -1,12 +1,25 @@
 import asyncio
 from pathlib import Path
 
+import pytest
 from conftest import auth_header, register_user
 from fastapi.testclient import TestClient
 
 from app.api.admin import get_ollama_client
 from app.services.document_service import process_document_job
+from app.services.llm.base import LLMProvider
 from app.services.wiki.pipeline import process_wiki_ingest_job
+
+
+class CancelledLLMProvider(LLMProvider):
+    async def complete(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float | None = None,
+        timeout_seconds: int | None = None,
+    ) -> str:
+        raise asyncio.CancelledError
 
 
 def create_source_kb(client: TestClient, token: str) -> str:
@@ -86,6 +99,21 @@ def run_wiki_worker(client: TestClient, task_id: str) -> None:
     asyncio.run(run_worker())
 
 
+def run_cancelled_wiki_worker(client: TestClient, task_id: str) -> None:
+    async def run_worker() -> None:
+        fake_client = client.app.dependency_overrides[get_ollama_client]()
+        async with client.app.state.session_factory() as session:
+            await process_wiki_ingest_job(
+                session,
+                settings=client.app.state.settings,
+                ollama_client=fake_client,
+                task_id=task_id,
+                llm_provider=CancelledLLMProvider(),
+            )
+
+    asyncio.run(run_worker())
+
+
 def test_wiki_ingest_pages_graph_and_idempotency(client: TestClient) -> None:
     admin = register_user(client, "admin")
     token = admin["tokens"]["access_token"]
@@ -151,3 +179,28 @@ def test_wiki_rebuild_blocks_queries_until_worker_completes(client: TestClient) 
     pages = client.get(f"/api/v1/wiki/{wiki_kb_id}/pages", headers=headers)
     assert pages.status_code == 200
     assert pages.json()["items"]
+
+
+def test_wiki_rebuild_cancelled_task_releases_building_status(client: TestClient) -> None:
+    admin = register_user(client, "cancelled-owner")
+    token = admin["tokens"]["access_token"]
+    headers = auth_header(token)
+    source_kb_id = create_source_kb(client, token)
+    upload_completed_document(client, token, source_kb_id)
+    wiki_kb_id = create_wiki_kb(client, token, source_kb_id)
+
+    rebuild = client.post(f"/api/v1/wiki/{wiki_kb_id}/rebuild", headers=headers, json={"confirm": "REBUILD"})
+    assert rebuild.status_code == 202
+    task_id = rebuild.json()["task_id"]
+
+    with pytest.raises(asyncio.CancelledError):
+        run_cancelled_wiki_worker(client, task_id)
+
+    task = client.get(f"/api/v1/tasks/{task_id}", headers=headers)
+    assert task.status_code == 200
+    assert task.json()["status"] == "failed"
+    assert task.json()["stage"] == "failed"
+    assert task.json()["error"]["code"] == "wiki_ingest_cancelled"
+
+    pages = client.get(f"/api/v1/wiki/{wiki_kb_id}/pages", headers=headers)
+    assert pages.status_code == 200

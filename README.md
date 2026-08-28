@@ -44,6 +44,21 @@ docker compose up --build
 - Backend Docs: http://localhost:8000/api/v1/docs
 - Langfuse: http://localhost:3000
 
+## 后台任务配置
+
+ARQ worker 运行参数位于 `backend/config/worker.toml`：
+
+```toml
+[worker.pools.default]
+queue_name = "arq:queue"
+job_timeout_seconds = 1800
+max_jobs = 4
+```
+
+当前实现只有一个默认 worker 队列，`max_jobs` 表示文档处理、Wiki ingest、Wiki rebuild 等所有后台任务共享的总并发上限，不是 Wiki 专属并发。`job_timeout_seconds` 用于避免 Wiki 全量更新在 LLM 调用较慢时被 ARQ 默认 300 秒超时中断。
+
+后续 V2 会演进为 document、wiki、enrichment、maintenance、shared 等分池队列；背景和计划见 `docs/v2/ROADMAP.md`。
+
 ## 质量命令
 
 ```powershell

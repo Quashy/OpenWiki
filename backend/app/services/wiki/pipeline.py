@@ -250,25 +250,50 @@ async def process_wiki_ingest_job(
         kb.status = "active"
         kb.updated_at = now_utc()
         await update_task_state(session, task, status="completed", stage="completed", progress=100)
+    except asyncio.CancelledError:
+        trace_level = "ERROR"
+        trace_status_message = "Wiki 任务被 worker 取消或超时"
+        await mark_wiki_task_failed(
+            session,
+            task_id=task_id,
+            code="wiki_ingest_cancelled",
+            message=trace_status_message,
+        )
+        raise
     except Exception as exc:
         trace_level = "ERROR"
         trace_status_message = str(exc)
-        await session.rollback()
-        task = await session.get(TaskPendingOp, task_id)
-        kb = await session.get(KnowledgeBase, task.kb_id) if task is not None else None
-        if kb is not None:
-            kb.status = "active"
-            kb.updated_at = now_utc()
-        if task is not None:
-            task.status = "failed"
-            task.stage = "failed"
-            task.progress = 100
-            task.error = {"code": getattr(exc, "code", "wiki_ingest_failed"), "message": str(exc)}
-            task.updated_at = now_utc()
-        await session.commit()
+        await mark_wiki_task_failed(
+            session,
+            task_id=task_id,
+            code=getattr(exc, "code", "wiki_ingest_failed"),
+            message=str(exc),
+        )
         raise
     finally:
         trace.finish(level=trace_level, status_message=trace_status_message)
+
+
+async def mark_wiki_task_failed(
+    session: AsyncSession,
+    *,
+    task_id: str,
+    code: str,
+    message: str,
+) -> None:
+    await session.rollback()
+    task = await session.get(TaskPendingOp, task_id)
+    kb = await session.get(KnowledgeBase, task.kb_id) if task is not None else None
+    if kb is not None:
+        kb.status = "active"
+        kb.updated_at = now_utc()
+    if task is not None:
+        task.status = "failed"
+        task.stage = "failed"
+        task.progress = 100
+        task.error = {"code": code, "message": message}
+        task.updated_at = now_utc()
+    await session.commit()
 
 
 async def update_task_state(

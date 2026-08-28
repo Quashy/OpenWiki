@@ -1,0 +1,14 @@
+# OpenWiki background worker runtime configuration.
+#
+# Current state:
+# - One ARQ queue is shared by document processing and Wiki ingest jobs.
+# - max_jobs is the total concurrency of this worker, not Wiki-only concurrency.
+#
+# V2 target:
+# - Split this default pool into purpose-built pools such as document, wiki,
+#   enrichment, maintenance, and shared.
+
+[worker.pools.default]
+queue_name = "arq:queue"
+job_timeout_seconds = 1800
+max_jobs = 4
