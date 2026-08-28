@@ -75,7 +75,7 @@ def sample_prompts() -> list[WikiPrompt]:
     ]
 
 
-def test_wiki_prompt_builders_render_v01_metadata_and_no_placeholders() -> None:
+def test_wiki_prompt_builders_render_version_metadata_and_no_placeholders() -> None:
     prompts = sample_prompts()
     stages = ["extract", "dedup", "citation", "taxonomy", "source_summary", "reduce", "overview"]
 
@@ -83,7 +83,7 @@ def test_wiki_prompt_builders_render_v01_metadata_and_no_placeholders() -> None:
     for prompt in prompts:
         assert prompt.metadata["prompt_family"] == PROMPT_FAMILY
         assert prompt.metadata["prompt_version"] == PROMPT_VERSION
-        assert PROMPT_VERSION == "wiki_prompt_v0.1"
+        assert PROMPT_VERSION == "wiki_prompt_v0.2"
         assert "{{" not in prompt.system
         assert "{{" not in prompt.user
         assert "}}" not in prompt.system
@@ -143,4 +143,4 @@ def test_observed_llm_span_records_prompt_version_metadata() -> None:
     assert trace.spans[0].name == "llm_extract"
     assert trace.spans[0].metadata["prompt_family"] == "wiki_ingest"
     assert trace.spans[0].metadata["prompt_stage"] == "extract"
-    assert trace.spans[0].metadata["prompt_version"] == "wiki_prompt_v0.1"
+    assert trace.spans[0].metadata["prompt_version"] == "wiki_prompt_v0.2"

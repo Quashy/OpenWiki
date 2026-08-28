@@ -1,7 +1,7 @@
-# OpenWiki Wiki Prompt 模板初版
+# OpenWiki Wiki Prompt 模板
 
-> 版本：`wiki_prompt_v0.1`
-> 状态：用于 M4 prompt 抽取与后续 eval 演进的模板契约。
+> 版本：`wiki_prompt_v0.2`
+> 状态：在 `wiki_prompt_v0.1` 基线与 Dedup 对比后，补充七阶段抽象规则和少量正反例的模板契约。
 > 依据：`docs/v1/ROADMAP.md` M4、当前 `backend/app/services/wiki/pipeline.py` 输入输出、`docs/prompt/prompt_rules.md`。
 
 ## 0. 使用约定
@@ -10,7 +10,7 @@
 
 占位符风格统一为 `{{name}}`。后续在 Python 中可以用轻量 builder 函数替换，不要求引入模板引擎。模板变量必须由 builder 提供，LLM 不应看到未替换的占位符。
 
-当前 v0.1 优先适配现有 OpenWiki 后端结构：
+当前 v0.2 优先适配现有 OpenWiki 后端结构：
 
 - `WikiCandidate` 字段：`name`、`slug`、`page_type`、`entity_type`、`aliases`、`description`、`source_refs`。
 - `chunk_payload` 字段：`id`、`header_path`、`content`。
@@ -18,7 +18,7 @@
 - Citation 仍输出当前代码可消费的 `{"citations": [{"slug": "...", "chunk_ids": [...]}]}`。
 - Taxonomy 仍输出当前代码可消费的 `{"items": [{"slug": "...", "category_path": [...]}]}`。
 - Reduce 仍输出当前代码可消费的 `{"content": "SUMMARY: ...", "relations": [...]}`。
-- Dedup 是 M4 新增阶段的目标模板，当前 `pipeline.py` 还未实现该 pass。
+- Dedup 是 M4 新增阶段，当前位于 Extract 之后、Citation 之前。
 
 ## 1. 全局规则
 
@@ -40,7 +40,7 @@
 
 ```python
 PROMPT_FAMILY = "wiki_ingest"
-PROMPT_VERSION = "wiki_prompt_v0.1"
+PROMPT_VERSION = "wiki_prompt_v0.2"
 ```
 
 每次 LLM 调用的 span metadata 建议记录：
@@ -49,7 +49,7 @@ PROMPT_VERSION = "wiki_prompt_v0.1"
 {
   "prompt_family": "wiki_ingest",
   "prompt_stage": "extract | dedup | citation | taxonomy | source_summary | reduce | overview",
-  "prompt_version": "wiki_prompt_v0.1"
+  "prompt_version": "wiki_prompt_v0.2"
 }
 ```
 
@@ -111,17 +111,29 @@ PROMPT_VERSION = "wiki_prompt_v0.1"
 - 具体命名事物进入 entity，例如人、组织、产品、地点、技术、事件、文档、项目、系统。
 - 抽象主题、方法、机制、理论、政策、流程进入 concept。
 - 同一对象不得同时输出为 entity 和 concept。
+- 具体事项、安排、预订、记录、交易、工单、活动实例优先作为 entity。
+- 参数、规则、步骤、方法、评价标准、分类体系优先作为 concept。
+- 编号、日期、金额、规格、取件码、预约码等通常是事实属性；只有它们本身被独立解释、追踪或管理时才抽成页面。
+- 模板占位字段、示例填充值、说明性占位文本不得抽成页面。
 
 Slug 规则：
 - 如果 existing_slugs 中已有同一对象的 slug，必须复用原 slug。
 - 如果旧 slug 对应对象未在当前 chunks 中出现，不要输出。
 - 新对象才创建新 slug。
 - 非拉丁名称可用拼音或稳定英文转写。
+- slug 表达对象本身，不表达临时文档角色；优先使用稳定通用名称，而不是过细修饰词或一次性状态。
+- 同一候选项的 name、slug、page_type 必须互相一致，不要用 entity slug 搭配 concept 语义。
 
 证据规则：
 - 只抽 chunks 中被实质讨论的条目。
 - 只有一次顺带提及、列表中无解释的技术名、泛泛背景词，不要抽。
 - 不要根据文件名、document_id 或外部知识补充条目。
+
+正反例：
+- 正例：输入描述一个具体预约事项，并包含预约编号、时间、地点；输出一个预约事项 entity，编号放入 aliases 或 description。
+- 反例：只因为出现预约编号，就把编号、时间、地点分别抽成三个互不相关的核心页面。
+- 正例：输入解释一套操作规则或判断标准；输出 concept。
+- 反例：把规则示例里的占位值、模板字段名或待填写内容抽成 entity。
 
 空内容规则：
 - 如果 chunks 为空或没有实质文本，返回 {"candidates": []}。
@@ -180,28 +192,40 @@ JSON 格式：
 
 "merges" 是 map：
 - key 是新 candidate 的 slug。
-- value 是应合并到的既有页面 slug。
+- value 是应合并到的既有页面或同批候选项 slug。
 
 硬约束：
-- 只能合并到 existing_pages_json 中存在的 slug。
+- 只能合并到 existing_pages_json 或 new_candidates_json 中存在的 slug。
 - entity 只能合并 entity，concept 只能合并 concept。
 - 不得发明 slug。
 - 不得因为相关、同领域、同文件、名称部分重合而合并。
+- 不得合并场所与其承载的活动、课程、服务或事件。
+- 不得合并计划、安排、项目与其配套模板、记录、清单、工具或执行产物。
+- 不得合并产品、服务、政策、流程与其版本、套餐、实例、表单或派生材料。
+- 不得合并地点、组织、人员与其运营、参与、负责或举办的事项。
 
 允许合并：
 - 官方简称与全称。
 - 中英文译名。
 - 大小写、空格、连字符等轻微写法差异。
 - 同一对象的常见别称。
+- 同一生活事项或同一编号对象的不同命名，例如事项名与事项编号。
 
 禁止合并：
 - 竞品或同类产品。
 - 不同版本。
 - 上下位概念。
 - 同一领域的不同证件、政策、流程、表单、标准。
-- 相关但不同的组织、项目、地点或事件。
+- 相关但不同的组织、项目、地点、事件、计划、模板或课程。
 
 核心原则：related != same。不确定时不要合并。
+
+正反例：
+- 正例：全称、官方简称、译名、大小写差异指向同一对象，可以合并。
+- 正例：同一事项被不同文档称为“申请记录”和“申请单”，且属性、时间、主体完全一致，可以合并。
+- 反例：某场所举办某活动，场所和活动不能合并。
+- 反例：某计划要求填写某记录模板，计划和模板不能合并。
+- 反例：某产品存在不同版本、套餐或实例，除非输入明确说明它们是同一对象，否则不能合并。
 
 JSON 格式：
 - 只输出 JSON。
@@ -257,6 +281,15 @@ JSON 格式：
 - 如果某 candidate 没有实质证据，不要输出它。
 - 不要为凑引用选择泛泛背景 chunk。
 - 不要输出 chunks_json 之外的 id。
+- 优先选择包含定义、身份、编号、日期、金额、规格、数量、地点、关系或约束的 chunk。
+- 如果 candidate 的 aliases、编号或关键参数来自不同 chunk，应保留多个 chunk_id。
+- 只含目录、标题、免责声明、模板占位或示例说明的 chunk 通常不是实质证据。
+
+正反例：
+- 正例：chunk 同时给出对象名称、时间和关键编号，可作为该对象引用。
+- 正例：chunk 说明 A 使用 B 或 A 位于 B，可同时作为 A、B 以及二者关系的证据。
+- 反例：chunk 只在列表中顺带出现对象名，没有任何属性或事实，不要引用。
+- 反例：chunk 只是模板占位提示或格式说明，不要作为事实引用。
 
 JSON 格式：
 - 只输出 JSON。
@@ -317,8 +350,17 @@ JSON 格式：
 - 单个分类标签中不要包含 "/"。
 - 每个 candidate slug 必须出现一次。
 - 分类名称使用中文，除非输入主要是英文专有领域并且英文分类更稳定。
+- 一级分类优先描述稳定领域或对象类型，二级分类描述更具体的稳定子类。
+- 不要把来源文件名、临时状态、日期、负责人或动作写成分类。
+- 具体事项与其配套规则、模板、记录可以同属一个宽泛领域，但二级分类应区分对象本质。
 
 当前 OpenWiki 默认兜底会使用 "未分类"，但模型应尽量给出有意义分类。
+
+正反例：
+- 正例：具体预订、行程、工单可归入 ["事项", "安排"] 或已有同义分类。
+- 正例：操作规则、参数说明可归入 ["知识", "规则"] 或已有同义分类。
+- 反例：不要用 ["来源文档", "第一篇"]、["待处理", "今天"] 这类临时分类。
+- 反例：不要为同义分类重复创建 ["安排"] 和 ["计划安排"]。
 
 JSON 格式：
 - 只输出 JSON。
@@ -387,10 +429,19 @@ JSON 格式：
 事实规则：
 - 只基于 chunks_json。
 - 不要使用文件名、document_id 或外部知识猜测主题。
+- 区分正式事实、示例内容和模板占位；模板占位只能说明为占位，不得当成真实事实。
+- 如果原文明确表示某信息未知、待确认或不得推断，摘要必须保留这种不确定性。
+- 编号、日期、金额、规格、数量、地点、人员等关键字段必须原样保留，不要改写。
 - 如果 chunks 为空或没有实质文本，输出：
   SUMMARY: No textual content was extractable from this document.
 
   本文档没有可用于摘要的实质文本内容。
+
+正反例：
+- 正例：原文写明具体时间、地点、编号时，在摘要中原样保留。
+- 正例：原文说明某项信息待确认时，写成待确认，不要补全。
+- 反例：不要把“填写你的姓名”“待替换地址”等占位文本写成真实人物或地点。
+- 反例：不要根据文档标题猜测原文没有出现的背景。
 
 语言：
 - 默认使用中文；专有名词保持原文。
@@ -406,7 +457,7 @@ JSON 格式：
 - `{{candidate_json}}`
 - `{{allowed_links_json}}`
 - `{{chunks_json}}`
-- `{{existing_page_markdown}}`：当前 `pipeline.py` 尚未传入；后续增量归并时应补齐。v0.1 可传空字符串。
+- `{{existing_page_markdown}}`：当前 `pipeline.py` 尚未传入；后续增量归并时应补齐。v0.2 可传空字符串。
 
 ### System
 
@@ -465,6 +516,16 @@ relations：
 - relation_type 使用简短中文动词或关系短语，如 "属于"、"依赖"、"负责"、"使用"、"包含"、"替代"、"位于"、"相关"。
 - 不要输出自环关系。
 - 没有明确关系时返回空数组。
+- 当 chunks 明确表达当前 candidate 与白名单页面之间的关系时，应输出 relation，不要只写在正文中。
+- 常见关系触发包括：位于、属于、包含、使用、依赖、负责、参与、举办、入住、乘坐、关联、替代、更新、约束、适用于。
+- 关系必须围绕当前 candidate；不要输出两个第三方页面之间的关系。
+- 如果关系只来自推断或常识，不要输出。
+
+正反例：
+- 正例：原文说明当前事项使用某工具，且工具在 allowed_links_json 中；输出 target_slug 为该工具的 "使用" 关系。
+- 正例：原文说明当前安排发生在某地点，且地点在 allowed_links_json 中；输出 "位于" 或 "发生于" 关系。
+- 反例：当前页面是计划，不要把配套记录模板的字段写成计划本身的事实。
+- 反例：allowed_links_json 没有目标页面时，不要发明 target_slug。
 
 JSON 格式：
 - 只输出 JSON。
@@ -520,12 +581,20 @@ JSON 格式：
 - 说明主要实体、概念、关键关系和资料覆盖范围。
 - 不要生成索引目录清单；索引页由系统生成。
 - 不要编造 page_summaries_json 中没有的主题。
+- 概括应保持在页面摘要共同支持的范围内，不把局部事实扩展成整体结论。
+- 如果资料存在冲突、更新或未知项，只能按 page_summaries_json 中已出现的信息说明。
 
 双链规则：
 - 只允许使用 allowed_links_json 中的 slug。
 - 提到页面条目时使用 `[[slug|name]]`。
 - 不要发明 slug。
 - 不要输出自链或坏链。
+
+正反例：
+- 正例：多个页面共同指向同一事项、参与者、地点或规则时，可以概述资料覆盖了这些关系。
+- 正例：只有单页提到的事实，可描述为局部事实，不要上升为全局结论。
+- 反例：不要补充 page_summaries_json 中没有的原因、影响、背景或建议。
+- 反例：不要把 overview 写成完整索引列表。
 
 语言：
 - 默认使用中文；专有名词保持原文。
@@ -536,8 +605,8 @@ JSON 格式：
 
 ## 10. 后续落地顺序
 
-1. 先把现有 `pipeline.py` 内联 prompt 行为等价迁移到 `backend/app/services/wiki/prompts.py`。
-2. 为每个 builder 返回 `system`、`user`、`metadata`。
-3. 增加 prompt 结构测试：阶段名、版本号、输出 schema、关键硬约束。
-4. 再引入 Dedup pass；Dedup 当前只是目标模板，不应在没有 runner 与 case 覆盖前直接接主链路。
-5. 基于 Micro Eval 失败项优先强化 Citation 与 Reduce，再调 Extract、Taxonomy、Source Summary、Overview。
+1. 已将 `pipeline.py` 内联 prompt 迁移到 `backend/app/services/wiki/prompts.py`。
+2. 每个 builder 返回 `system`、`user`、`metadata`，并记录 `prompt_family`、`prompt_stage`、`prompt_version`。
+3. 已增加 prompt 结构测试：阶段名、版本号、输出 schema、关键硬约束。
+4. 已引入 Dedup pass，位于 Extract 之后、Citation 之前。
+5. 后续基于 `wiki_prompt_v0.2` 重跑 Micro Eval，再决定是否继续强化 Citation、Reduce、Extract、Taxonomy、Source Summary、Overview。
