@@ -32,6 +32,15 @@ from app.services.wiki.page_service import (
     upsert_relation,
     upsert_wiki_page,
 )
+from app.services.wiki.prompts import (
+    WikiPrompt,
+    build_citation_prompt,
+    build_extract_prompt,
+    build_overview_prompt,
+    build_reduce_prompt,
+    build_source_summary_prompt,
+    build_taxonomy_prompt,
+)
 from app.workers.settings import redis_settings
 
 logger = structlog.get_logger(__name__)
@@ -322,20 +331,25 @@ class ObservedLLMProvider(LLMProvider):
         *,
         temperature: float | None = None,
         timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
     ) -> str:
-        stage = stage_from_messages(messages)
+        stage = (prompt_metadata or {}).get("prompt_stage") or stage_from_messages(messages)
+        metadata = {
+            "stage": stage,
+            "temperature": temperature,
+            "timeout_seconds": timeout_seconds,
+        }
+        if prompt_metadata:
+            metadata.update(prompt_metadata)
         with self.trace.span(
             name=f"llm_{stage}",
-            metadata={
-                "stage": stage,
-                "temperature": temperature,
-                "timeout_seconds": timeout_seconds,
-            },
+            metadata=metadata,
         ) as span:
             response = await self.delegate.complete(
                 messages,
                 temperature=temperature,
                 timeout_seconds=timeout_seconds,
+                prompt_metadata=prompt_metadata,
             )
             span.update(input=messages, output=response)
             return response
@@ -344,6 +358,9 @@ class ObservedLLMProvider(LLMProvider):
 def stage_from_messages(messages: list[dict[str, str]]) -> str:
     for message in reversed(messages):
         content = message.get("content", "")
+        match = re.search(r"<stage>([^<]+)</stage>", content)
+        if match:
+            return normalize_slug(match.group(1)).replace("/", "_") or "call"
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError:
@@ -669,16 +686,16 @@ async def embed_wiki_pages(
 async def llm_json(
     llm: LLMProvider | None,
     *,
-    system: str,
-    user: str,
+    prompt: WikiPrompt,
     config: WikiConfig,
 ) -> dict[str, Any] | None:
     if llm is None:
         return None
     response = await llm.complete(
-        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        [{"role": "system", "content": prompt.system}, {"role": "user", "content": prompt.user}],
         temperature=config.temperature,
         timeout_seconds=config.llm_timeout_seconds,
+        prompt_metadata=prompt.metadata,
     )
     return parse_json_object(response)
 
@@ -686,16 +703,16 @@ async def llm_json(
 async def llm_markdown(
     llm: LLMProvider | None,
     *,
-    system: str,
-    user: str,
+    prompt: WikiPrompt,
     config: WikiConfig,
 ) -> str | None:
     if llm is None:
         return None
     return await llm.complete(
-        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        [{"role": "system", "content": prompt.system}, {"role": "user", "content": prompt.user}],
         temperature=config.temperature,
         timeout_seconds=config.llm_timeout_seconds,
+        prompt_metadata=prompt.metadata,
     )
 
 
@@ -707,30 +724,16 @@ async def llm_extract(
     existing_slugs: list[str],
     config: WikiConfig,
 ) -> list[dict[str, Any]] | None:
+    prompt = build_extract_prompt(
+        document_id=document.id,
+        existing_slugs=existing_slugs,
+        chunks=chunk_payload(chunks[:20]),
+        extraction_granularity="standard",
+        custom_instructions="",
+    )
     payload = await llm_json(
         llm,
-        system="你是企业 Wiki 的结构化抽取器。只输出 JSON，不要输出解释。",
-        user=json.dumps(
-            {
-                "stage": "extract",
-                "document_id": document.id,
-                "existing_slugs": existing_slugs,
-                "chunks": chunk_payload(chunks[:20]),
-                "required_json": {
-                    "candidates": [
-                        {
-                            "name": "条目名称",
-                            "slug": "entity/name 或 concept/name",
-                            "page_type": "entity 或 concept",
-                            "entity_type": "person/org/product/place/tech/event/other",
-                            "aliases": ["别名"],
-                            "description": "一句话描述",
-                        }
-                    ]
-                },
-            },
-            ensure_ascii=False,
-        ),
+        prompt=prompt,
         config=config,
     )
     items = payload.get("candidates") if payload else None
@@ -744,18 +747,13 @@ async def llm_citation(
     chunks: list[Chunk],
     config: WikiConfig,
 ) -> dict[str, list[str]]:
+    prompt = build_citation_prompt(
+        candidates=[candidate_payload(item) for item in candidates],
+        chunks=chunk_payload(chunks[:80]),
+    )
     payload = await llm_json(
         llm,
-        system="你是 Wiki 引用标注器。只输出 JSON，不要输出解释；chunk_id 必须来自输入。",
-        user=json.dumps(
-            {
-                "stage": "citation",
-                "candidates": [candidate_payload(item) for item in candidates],
-                "chunks": chunk_payload(chunks[:80]),
-                "required_json": {"citations": [{"slug": "entity/name", "chunk_ids": ["chunk uuid"]}]},
-            },
-            ensure_ascii=False,
-        ),
+        prompt=prompt,
         config=config,
     )
     result: dict[str, list[str]] = {}
@@ -773,17 +771,10 @@ async def llm_taxonomy(
     candidates: list[WikiCandidate],
     config: WikiConfig,
 ) -> dict[str, list[str]]:
+    prompt = build_taxonomy_prompt(candidates=[candidate_payload(item) for item in candidates])
     payload = await llm_json(
         llm,
-        system="你是 Wiki 分类规划器。只输出 JSON，category_path 最多两级，优先复用常见企业知识分类。",
-        user=json.dumps(
-            {
-                "stage": "taxonomy",
-                "candidates": [candidate_payload(item) for item in candidates],
-                "required_json": {"items": [{"slug": "entity/name", "category_path": ["一级", "二级"]}]},
-            },
-            ensure_ascii=False,
-        ),
+        prompt=prompt,
         config=config,
     )
     result: dict[str, list[str]] = {}
@@ -803,18 +794,14 @@ async def llm_source_summary(
     candidates: list[WikiCandidate],
     config: WikiConfig,
 ) -> str | None:
+    prompt = build_source_summary_prompt(
+        document_id=document.id,
+        allowed_links=[candidate_payload(item) for item in candidates],
+        chunks=chunk_payload(chunks[:20]),
+    )
     return await llm_markdown(
         llm,
-        system="你是 Wiki 来源摘要页编写器。首行必须是 SUMMARY: ...，正文用 Markdown，可使用白名单中的双链。",
-        user=json.dumps(
-            {
-                "stage": "summary",
-                "document_id": document.id,
-                "allowed_links": [candidate_payload(item) for item in candidates],
-                "chunks": chunk_payload(chunks[:20]),
-            },
-            ensure_ascii=False,
-        ),
+        prompt=prompt,
         config=config,
     )
 
@@ -827,22 +814,15 @@ async def llm_reduce(
     chunks: list[Chunk],
     config: WikiConfig,
 ) -> tuple[str | None, list[dict[str, Any]]]:
+    prompt = build_reduce_prompt(
+        candidate=candidate_payload(candidate),
+        allowed_links=[candidate_payload(item) for item in candidates],
+        chunks=chunk_payload(chunks[:16]),
+        existing_page_markdown="",
+    )
     payload = await llm_json(
         llm,
-        system="你是 Wiki 页面归并器。只输出 JSON；content 首行必须是 SUMMARY: ...，relations 与正文分离。",
-        user=json.dumps(
-            {
-                "stage": "reduce",
-                "candidate": candidate_payload(candidate),
-                "allowed_links": [candidate_payload(item) for item in candidates],
-                "chunks": chunk_payload(chunks[:16]),
-                "required_json": {
-                    "content": "SUMMARY: ...\n\n## ...",
-                    "relations": [{"target_slug": "entity/name", "relation_type": "相关"}],
-                },
-            },
-            ensure_ascii=False,
-        ),
+        prompt=prompt,
         config=config,
     )
     if not payload:
@@ -859,20 +839,16 @@ async def llm_overview(
     candidates: list[WikiCandidate],
     config: WikiConfig,
 ) -> str | None:
+    prompt = build_overview_prompt(
+        allowed_links=[candidate_payload(item) for item in candidates],
+        page_summaries=[
+            {"slug": page.slug, "title": page.title, "summary": page.summary}
+            for page in pages[:40]
+        ],
+    )
     return await llm_markdown(
         llm,
-        system="你是 Wiki 全局综述编写器。首行必须是 SUMMARY: ...，正文用 Markdown，可使用白名单双链。",
-        user=json.dumps(
-            {
-                "stage": "overview",
-                "allowed_links": [candidate_payload(item) for item in candidates],
-                "page_summaries": [
-                    {"slug": page.slug, "title": page.title, "summary": page.summary}
-                    for page in pages[:40]
-                ],
-            },
-            ensure_ascii=False,
-        ),
+        prompt=prompt,
         config=config,
     )
 

@@ -9,5 +9,6 @@ class LLMProvider(ABC):
         *,
         temperature: float | None = None,
         timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
     ) -> str:
         raise NotImplementedError

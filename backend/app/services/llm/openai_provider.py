@@ -26,6 +26,7 @@ class OpenAILLMProvider(LLMProvider):
         *,
         temperature: float | None = None,
         timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
     ) -> str:
         if not self.api_key:
             raise ApiError("llm_not_configured", "LLM API Key 未配置", 409)

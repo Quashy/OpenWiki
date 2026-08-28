@@ -94,7 +94,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；其余为 eval runner、prompt 抽取、Dedup、prompt version trace、质量报告 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；`wiki_prompt_v0.1` 已接入 6 个现有阶段并记录 prompt version trace；其余为 Micro Eval 基准报告、Dedup、Scenario Eval runner、质量报告 |
 | M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | 复用 Wiki eval questions、SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
@@ -341,6 +341,9 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - 静态校验：Scenario Eval 结构校验通过，输出 `validated 3 scenarios, 18 documents, 18 questions`。本轮为文档型数据集，不跑后端 pytest。
 - Prompt 文档：新增 `docs/prompt/prompt_rules.md` 规则基线与 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 模板契约。
 - 推进决策：不再等待旧内联 prompt 单独成为唯一 baseline；下一步直接接入 `wiki_prompt_v0.1` 的 6 个现有阶段，跑 Micro Eval 作为首个可比较基准。Dedup 和 Scenario Eval runner 后置为独立改动。
+- Prompt 接入：`llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 已抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 定义的 `wiki_prompt_v0.1`。
+- Prompt 观测：每个 builder 返回 `prompt_family=wiki_ingest`、`prompt_stage`、`prompt_version=wiki_prompt_v0.1`，`ObservedLLMProvider` 已在 Langfuse LLM span metadata 中记录这些字段。
+- Prompt 测试：新增 prompt builder 单测覆盖阶段名、版本号、输出格式关键约束、渲染后无 `{{...}}` 占位符残留，以及 LLM span metadata 记录 prompt version；后端全量测试 `PYTHONPATH=backend python -m pytest backend/tests` 通过，29 passed。
 
 **推荐实施顺序**
 
