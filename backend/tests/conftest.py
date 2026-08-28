@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 from app.api.admin import get_ollama_client
+from app.config import Settings, get_settings
 from app.database import Base, get_session
 from app.main import create_app
 
@@ -66,7 +67,7 @@ def auth_header(token: str) -> dict[str, str]:
 
 
 @pytest.fixture()
-def client() -> Iterator[TestClient]:
+def client(tmp_path) -> Iterator[TestClient]:
     engine = create_async_engine(
         "sqlite+aiosqlite://",
         connect_args={"check_same_thread": False},
@@ -86,8 +87,12 @@ def client() -> Iterator[TestClient]:
 
     asyncio.run(init_db())
     app = create_app()
+    test_settings = Settings(upload_dir=tmp_path / "uploads")
+    app.state.session_factory = session_factory
+    app.state.settings = test_settings
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_ollama_client] = lambda: FakeOllamaClient()
+    app.dependency_overrides[get_settings] = lambda: test_settings
 
     with TestClient(app) as test_client:
         yield test_client

@@ -1924,7 +1924,7 @@ components:
           maxLength: 64
     Document:
       type: object
-      required: [id, kb_id, filename, file_hash, file_size, status, chunk_count, created_by, created_at, updated_at]
+      required: [id, kb_id, filename, file_hash, file_size, status, chunk_count, created_by, created_by_username, created_at, updated_at]
       properties:
         id:
           $ref: "#/components/schemas/Uuid"
@@ -1954,6 +1954,10 @@ components:
             $ref: "#/components/schemas/Tag"
         created_by:
           $ref: "#/components/schemas/Uuid"
+        created_by_username:
+          type: string
+          minLength: 1
+          maxLength: 64
         created_at:
           $ref: "#/components/schemas/DateTime"
         updated_at:

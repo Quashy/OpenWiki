@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.errors import ApiError
-from app.models import KnowledgeBase, WikiSourceBinding
+from app.models import Document, KnowledgeBase, WikiSourceBinding
 from app.schemas import (
     ChunkingConfig,
     KnowledgeBaseOut,
@@ -43,6 +43,12 @@ async def bound_sources(session: AsyncSession, kb: KnowledgeBase) -> list[Knowle
 
 
 async def kb_out(session: AsyncSession, kb: KnowledgeBase) -> KnowledgeBaseOut:
+    document_count = 0
+    if kb.type == "document":
+        document_count = int(
+            await session.scalar(select(func.count()).select_from(Document).where(Document.kb_id == kb.id))
+            or 0
+        )
     return KnowledgeBaseOut(
         id=kb.id,
         workspace_id=kb.workspace_id,
@@ -58,6 +64,7 @@ async def kb_out(session: AsyncSession, kb: KnowledgeBase) -> KnowledgeBaseOut:
         if kb.chunking_config
         else None,
         wiki_config=WikiConfig.model_validate(kb.wiki_config) if kb.wiki_config else None,
+        document_count=document_count,
         bound_source_kbs=await bound_sources(session, kb),
         created_at=kb.created_at,
         updated_at=kb.updated_at,

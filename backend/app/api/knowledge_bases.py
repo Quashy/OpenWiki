@@ -5,6 +5,9 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.admin import get_ollama_client
 from app.deps import CurrentPrincipalDep, Principal, SessionDep, SettingsDep, require_roles
 from app.schemas import (
+    ChunkPreviewRequest,
+    ChunkPreviewResponse,
+    ChunkingConfig,
     KnowledgeBaseOut,
     KnowledgeBasePage,
     KnowledgeBaseUpdateRequest,
@@ -13,6 +16,7 @@ from app.schemas import (
     WikiSourceBindingOut,
     WikiSourceBindingRequest,
 )
+from app.services.document_service import preview_chunks, require_source_kb
 from app.services.kb_service import (
     bind_source,
     create_kb,
@@ -141,3 +145,23 @@ async def unbind_source_knowledge_base(
         source_kb_id=source_kb_id,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{kb_id}/chunk-preview", response_model=ChunkPreviewResponse)
+async def preview_kb_chunks(
+    kb_id: str,
+    payload: ChunkPreviewRequest,
+    principal: AdminPrincipal,
+    session: SessionDep,
+) -> ChunkPreviewResponse:
+    kb = await require_source_kb(session, workspace_id=principal.workspace.id, kb_id=kb_id)
+    config = payload.chunking_config
+    if config is None:
+        config = ChunkingConfig.model_validate(kb.chunking_config or {})
+    return ChunkPreviewResponse(
+        items=preview_chunks(
+            content=payload.content,
+            content_type=payload.content_type,
+            config=config,
+        )
+    )

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 Role = Literal["admin", "editor", "viewer"]
 KbType = Literal["document", "wiki"]
@@ -151,6 +151,12 @@ class ChunkingConfig(BaseModel):
     chunk_size: int = Field(default=512, ge=128, le=4096)
     chunk_overlap: int = Field(default=80, ge=0, le=1024)
     strategy: Literal["header_aware"] = "header_aware"
+
+    @model_validator(mode="after")
+    def validate_overlap(self) -> "ChunkingConfig":
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError("chunk_overlap must be smaller than chunk_size")
+        return self
 
 
 class WikiConfig(BaseModel):
