@@ -90,7 +90,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 |---|---|---|---|---|
 | M0 | 工程与契约基线可启动、可迁移、可校验 | — | 已完成 | 2026-08-27：迁移、OpenAPI lint、前后端基础检查通过 |
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
-| M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 未开始 | 上传、分块、向量化、检索基线、文档处理 trace 通过 |
+| M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 未开始 | 六阶段 ingest、页面、图谱交互、六阶段 trace 通过 |
 | M4 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M5 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
@@ -216,6 +216,19 @@ M0 不交付业务接口；只建立接口契约和后端测试入口。
 - Dense 与 Sparse 在固定问题 Top-K 中能召回预期证据。
 - 删除文档后，其 chunk、embedding 和全文索引不可再被召回。
 - 文档处理可在 Langfuse 中查到 `document_process` trace（含分块与向量化 span）。
+
+**完成证据（2026-08-28）**
+
+- 后端：`$env:PYTHONPATH="backend"; python -m pytest backend/tests` 通过，18 passed。
+- 前端：`npm --prefix "frontend" run build` 通过，存在 Vite chunk size warning，不阻塞 M2。
+- API 契约：`npm run api:lint` 通过。
+- Alembic：运行中数据库版本为 `0006_doc_uploader_username (head)`，包含 M2 文档摄入迁移。
+- 运行环境：frontend、backend、worker、db、redis、Langfuse 容器均正常运行。
+- 观测：最新真实 `document_process` trace 可在 Langfuse 中看到 `chunking`、`embedding`、`indexing` span；`embedding` span 记录 `chunk_count`、`model`、`embedding_dim`。
+
+**剩余风险**
+
+- 非 `.md/.txt`、超大小、不同 KB 重复上传、非失败文档重试 `409` 已由实现覆盖，后续若需要更硬的里程碑验收，可补充逐项 API 集成断言。
 
 ### M3：Wiki 生成、浏览与知识图谱
 
