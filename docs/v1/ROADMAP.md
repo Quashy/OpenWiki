@@ -74,6 +74,14 @@ v1 先完成一个可演示、可内部试用的闭环：
 | 删除文档后来源页标记"来源已删除" | 4.3.4 | 删除仅清理 chunk/向量/索引与审计记录，不动 Wiki 页面 |
 | OpenAI Embedding 与多维向量 | 4.8.2 | v1 仅 Ollama 1024 维 embedding |
 
+### 2.3 观测 Dashboard 方向
+
+Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不替代 Prometheus/Grafana 类系统监控。M2-M4 按链路逐步补齐 trace/span，M5 统一验收以下 dashboard 方向：
+
+- 文档摄入健康度：上传数、处理成功率、失败率、embedding 耗时、chunk 数、失败原因。
+- RAG 问答质量：query、召回 chunk、引用命中率、回答评分、无答案率。
+- 成本与性能：模型调用次数、token、耗时 P50/P95，并按模型、KB 维度拆分。
+
 ## 3. 里程碑总览
 
 状态只使用：`未开始`、`进行中`、`阻塞`、`已完成`。

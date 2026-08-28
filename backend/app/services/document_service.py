@@ -646,6 +646,8 @@ async def process_document_job(
         },
     )
     payload = {**task.payload, "trace_id": trace.id}
+    trace_level = "DEFAULT"
+    trace_status_message = "completed"
 
     try:
         document.status = "running"
@@ -669,15 +671,23 @@ async def process_document_job(
         task.updated_at = now_utc()
         await session.commit()
 
+        embedding_model = kb.embedding_model_tag if kb else settings.ollama_embed_model
+        expected_dim = kb.embedding_dim if kb else 1024
         provider = OllamaEmbeddingProvider(
             client=client,
             base_url=model_settings.ollama_base_url,
-            tag=kb.embedding_model_tag if kb else settings.ollama_embed_model,
+            tag=embedding_model,
         )
         inputs = [embed_input(chunk.header_path, chunk.content) for chunk in chunks]
-        with trace.span(name="embedding"):
+        with trace.span(
+            name="embedding",
+            metadata={
+                "chunk_count": len(chunks),
+                "model": embedding_model,
+                "embedding_dim": expected_dim,
+            },
+        ):
             embeddings = await provider.embed(inputs)
-        expected_dim = kb.embedding_dim if kb else 1024
         for embedding in embeddings:
             if len(embedding) != expected_dim:
                 raise ApiError("embedding_incompatible", "Embedding 维度与知识库不匹配", 409)
@@ -687,8 +697,9 @@ async def process_document_job(
         task.updated_at = now_utc()
         await session.commit()
 
-        await session.execute(delete(ChunkModel).where(ChunkModel.document_id == document.id))
-        await insert_document_chunks(session, document=document, chunks=chunks, embeddings=embeddings)
+        with trace.span(name="indexing", metadata={"chunk_count": len(chunks)}):
+            await session.execute(delete(ChunkModel).where(ChunkModel.document_id == document.id))
+            await insert_document_chunks(session, document=document, chunks=chunks, embeddings=embeddings)
         document.status = "completed"
         document.chunk_count = len(chunks)
         document.updated_at = now_utc()
@@ -699,6 +710,8 @@ async def process_document_job(
         task.updated_at = now_utc()
         await session.commit()
     except Exception as exc:
+        trace_level = "ERROR"
+        trace_status_message = str(exc)
         await session.rollback()
         document = await session.get(Document, document_id)
         task = await latest_task_for_document(session, document_id)
@@ -714,3 +727,5 @@ async def process_document_job(
             task.updated_at = now_utc()
         await session.commit()
         raise
+    finally:
+        trace.finish(level=trace_level, status_message=trace_status_message)
