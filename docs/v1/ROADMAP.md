@@ -1,10 +1,10 @@
 # OpenWiki V2 v1 开发路线图
 
-> 版本：v2.0
+> 版本：v2.2
 > 日期：2026-08-28
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.1 — M3 后先补 Wiki Prompt 工程化作为 M4，单 KB RAG 问答顺延到 M5；M2-M5 构成 demo 主线（M5 退出即可演示）；工程补齐顺延到 M6，演进项顺延到 M7。
+> 变更：v2.2 — M4 明确采用“先搭评估框架，再改 Prompt”的数据集驱动路线；M3 后先补 Wiki Prompt 工程化作为 M4，单 KB RAG 问答顺延到 M5；M2-M5 构成 demo 主线（M5 退出即可演示）；工程补齐顺延到 M6，演进项顺延到 M7。
 
 ---
 
@@ -94,7 +94,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 工程化与生成质量固化 | demo 质量门禁 | 未开始 | prompt 抽取、Reduce/Citation 强化、Dedup、prompt version trace、固定语料质量回归通过 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 未开始 | 数据集 case、真实 DeepSeek eval runner、prompt 抽取、Reduce/Citation 强化、Dedup、prompt version trace、质量报告通过 |
 | M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
@@ -278,16 +278,18 @@ M0 不交付业务接口；只建立接口契约和后端测试入口。
 - 真实环境烟测：使用 DeepSeek Key、Ollama embedding、Docker Compose 后端/worker/db/redis/Langfuse，上传固定语料并触发 Wiki ingest，任务 `fd643a77-f883-4564-b69b-5a3993d799bd` 完成；返回 trace_id `a01ee1b2-781d-4b6f-8f1a-1d6a432f4be5`；生成 11 个页面，覆盖 `index/source/entity/concept/overview/analysis`；图谱 7 个节点、21 条边。
 - 页面质量自查：真实生成的 11 个页面死链数 0，内部标记残留页面数 0。
 
-### M4：Wiki Prompt 工程化与生成质量固化
+### M4：Wiki Prompt 评估框架与生成质量固化
 
 **目标**
 
-先不进入问答，优先固化 M3 Wiki ingest 的生成质量：将六阶段 prompt 从流水线实现中抽离，建立可测试、可版本化、可观测的 prompt 层，并强化抽取、引用、分类、归并和去重规则。
+先不进入问答，优先固化 M3 Wiki ingest 的生成质量。M4 的核心原则是：先建立数据集与评估框架，再改 prompt。Prompt 优化必须能被固定 case、结构化断言、真实 DeepSeek 评估报告和 Langfuse trace 证明，而不是依赖一次人工观察。
 
 **背景**
 
 M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 MVP：
 
+- 当前只有固定语料和少量页面质量自查，缺少可重复运行的 Wiki 生成质量评估框架。
+- 没有结构化断言来判断“变好”还是“退步”：别名合并、相似但不同、引用命中、死链、自链、内部 chunk id、事实冲突等只能人工看。
 - `backend/app/services/wiki/prompts.py` 仍是 placeholder，真实 prompt 内联在 `pipeline.py`。
 - prompt 与流水线编排、数据库写入混在同一文件中，难以独立 review 和迭代。
 - prompt 没有显式版本，Langfuse trace 无法准确关联生成质量与 prompt 变更。
@@ -298,6 +300,13 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
 
 **交付**
 
+- 新增 Wiki 质量评估数据集目录，建议放在 `docs/evals/wiki/`：
+  - 每个 case 包含输入文档、Wiki 配置、期望页面/别名/引用/关系/禁止内容等结构化断言。
+  - 首批 8-12 个 case 覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、低价值噪音、引用约束、死链约束、图谱自链、空证据不编造。
+- 新增本地真实 LLM eval runner：
+  - 使用 DeepSeek Key 运行固定 case，不进入 CI 默认路径。
+  - 输出 Markdown/JSON 报告，记录 case 通过率、页面数量、死链数量、引用命中、Dedup 结果、图谱异常、trace_id 列表和失败摘要。
+  - 支持只跑单个 case，方便调 prompt 时快速复现。
 - 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`。
 - 为每个阶段建立 prompt version，并在 Langfuse span metadata 中记录 `prompt_family`、`prompt_stage`、`prompt_version`。
 - 强化六阶段 prompt：
@@ -308,22 +317,30 @@ WeKnora 的实现作为参考，但不直接照搬。重点吸收其工程策略
   - Reduce：模型定位为 compiler，不扩写、不幻觉；新增事实必须由 source chunks 支持；禁止自链、坏链和内部 chunk id；冲突信息单独处理。
   - Overview/Post-process：LLM 只负责综述或索引导言；死链清理、交叉链接注入优先走确定性代码。
 - 新增 Dedup pass：位于 Extract 之后、Citation 之前，只在高置信同义条件下合并。
+- 保留 pytest 的 fake provider 快速回归；真实 Key 只用于本地评估脚本和人工验收，避免 CI 依赖外部 LLM 稳定性和成本。
 
 **推荐实施顺序**
 
-1. Prompt 抽取：行为等价迁移到 `prompts.py`，新增 prompt 结构测试。
-2. Prompt 强化：优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Summary、Overview。
-3. Dedup pass：新增 `related != same` 去重规则与相似但不同条目的固定语料。
-4. Prompt 观测：Langfuse trace 支持按 prompt version 定位质量问题。
-5. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
+1. 数据集格式：定义 case schema、输入文档目录、期望断言格式和报告格式。
+2. 首批 case：先写 8-12 个小而尖锐的质量样例，不追求大规模，优先覆盖真实容易失败的边界。
+3. Eval runner：复用现有文档处理与 Wiki ingest 能力，跑完后对页面、引用、图谱和内容做结构化断言，并输出 trace_id。
+4. Prompt 抽取：行为等价迁移到 `prompts.py`，新增 prompt 结构测试，先不改变生成策略。
+5. Prompt 强化：基于 eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Summary、Overview。
+6. Dedup pass：新增 `related != same` 去重规则与相似但不同条目的固定语料。
+7. Prompt 观测：Langfuse trace 支持按 prompt version、case_id 定位质量问题。
+8. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
 
 **退出门禁**
 
+- `docs/evals/wiki/` 至少包含 8 个固定 case，并覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束和空证据不编造。
+- eval runner 可使用 DeepSeek Key 完整运行全量 case，并生成可追溯报告。
+- 报告中每个 case 都记录输入文档、生成任务、trace_id、失败断言和关键页面摘要。
+- 结构化断言覆盖 `must_have_pages`、`must_not_have_pages`、`must_have_aliases`、`must_have_citations`、`must_have_relations`、`must_not_contain`、死链数和自链数。
 - `pipeline.py` 不再包含长 prompt 文本，只负责流水线编排。
 - prompt builder 单测覆盖阶段名、版本号、输出格式和关键约束。
 - M3 固定语料测试通过，页面类型、目录树、图谱和幂等性保持稳定。
 - 新增相似但不同条目的固定语料，验证 Dedup 不错误合并。
-- Langfuse trace 可按 prompt version 过滤 Wiki ingest 各阶段调用。
+- Langfuse trace 可按 prompt version 和 case_id 过滤 Wiki ingest 各阶段调用。
 - 真实 DeepSeek smoke test 生成页面不含内部 chunk id、自链、死链和明显无依据扩写。
 
 ### M5：单 KB RAG 问答（🎯 Demo 达成）
@@ -456,7 +473,7 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2
 | 4.5.3 | 页面内容结构（元信息字段 + SUMMARY 行 + 双链） | v1 | M3 |
 | 4.5.4 | Wiki 生成触发（手动、互斥、全量重建） | 部分：自动触发 + debounce 后置 | M3 |
 | 4.5.5 | 六阶段流水线（Extract/Citation/Taxonomy/Summary/Reduce/Post-process） | v1 | M3 |
-| 4.5.5 | Wiki Prompt 工程化（模板抽取、版本、Dedup、质量回归） | v1 | M4 |
+| 4.5.5 | Wiki Prompt 工程化（评估框架、模板抽取、版本、Dedup、质量回归） | v1 | M4 |
 | 4.5.6 | Wiki 页面浏览（目录树、双链、来源跳转、搜索） | v1 | M3 |
 | 4.5.7 | Wiki 页面编辑（修订快照、重新向量化、人工编辑提示） | v1 | M6 |
 | 4.5.8 | 版本管理（历史、diff、回滚） | v1 | M6 |
