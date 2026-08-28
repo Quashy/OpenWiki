@@ -34,12 +34,16 @@ import { useAuthStore } from "../stores/authStore";
 import { ChatPage } from "../pages/ChatPage";
 import { KnowledgeBasePage } from "../pages/KnowledgeBasePage";
 import { MembersPage } from "../pages/MembersPage";
-import { GraphPlaceholder, MilestonePlaceholder } from "../pages/Placeholders";
+import { MilestonePlaceholder } from "../pages/Placeholders";
 import { SettingsPage } from "../pages/SettingsPage";
+import { WikiBrowserPage } from "../pages/WikiBrowserPage";
+import { WikiGraphPage } from "../pages/WikiGraphPage";
 
 export function AppShell() {
   const [route, setRoute] = useState<RouteKey>("kbs");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [wikiKbId, setWikiKbId] = useState<string | null>(null);
+  const [wikiPageId, setWikiPageId] = useState<string | null>(null);
   const { membership } = useAuthStore();
   const isAdmin = membership?.role === "admin";
 
@@ -61,12 +65,13 @@ export function AppShell() {
           </div>
         </header>
         <main className="min-w-0 p-4 sm:p-6">
-          {route === "kbs" && <KnowledgeBasePage canManage={isAdmin} />}
+          {route === "kbs" && <KnowledgeBasePage canManage={isAdmin} onOpenWiki={(kbId) => { setWikiKbId(kbId); setRoute("wiki"); }} />}
           {route === "members" && <MembersPage />}
           {route === "settings" && <SettingsPage />}
-          {route === "graph" && <GraphPlaceholder />}
+          {route === "wiki" && <WikiBrowserPage initialKbId={wikiKbId} initialPageId={wikiPageId} />}
+          {route === "graph" && <WikiGraphPage onOpenPage={(pageId) => { setWikiPageId(pageId); setRoute("wiki"); }} />}
           {route === "chat" && <ChatPage />}
-          {["wiki", "audit"].includes(route) && <MilestonePlaceholder title={sectionTitle(route)} route={route} />}
+          {route === "audit" && <MilestonePlaceholder title={sectionTitle(route)} route={route} />}
         </main>
       </div>
     </div>

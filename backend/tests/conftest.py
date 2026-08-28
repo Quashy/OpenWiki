@@ -87,7 +87,13 @@ def client(tmp_path) -> Iterator[TestClient]:
 
     asyncio.run(init_db())
     app = create_app()
-    test_settings = Settings(upload_dir=tmp_path / "uploads")
+    test_settings = Settings(
+        upload_dir=tmp_path / "uploads",
+        openai_api_key="",
+        deepseek_api_key="",
+        langfuse_public_key="",
+        langfuse_secret_key="",
+    )
     app.state.session_factory = session_factory
     app.state.settings = test_settings
     app.dependency_overrides[get_session] = override_session

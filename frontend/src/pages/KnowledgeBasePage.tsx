@@ -104,7 +104,7 @@ const documentStatusTone: Record<DocumentStatus, "default" | "primary" | "succes
   failed: "danger",
 };
 
-export function KnowledgeBasePage({ canManage }: { canManage: boolean }) {
+export function KnowledgeBasePage({ canManage, onOpenWiki }: { canManage: boolean; onOpenWiki?: (kbId: string) => void }) {
   const [openCreate, setOpenCreate] = useState(false);
   const [settingsKbId, setSettingsKbId] = useState<string | null>(null);
   const [sourceKbId, setSourceKbId] = useState<string | null>(null);
@@ -159,8 +159,8 @@ export function KnowledgeBasePage({ canManage }: { canManage: boolean }) {
         items={wikiKbs}
         empty="还没有 Wiki 知识库"
         isLoading={isLoading}
-        onOpen={setSettingsKbId}
-        actionLabel="查看详情"
+        onOpen={(kbId) => onOpenWiki?.(kbId) ?? setSettingsKbId(kbId)}
+        actionLabel="打开 Wiki"
       />
       <CreateKbModal open={openCreate} onClose={() => setOpenCreate(false)} sourceKbs={sourceKbs} onDone={() => queryClient.invalidateQueries({ queryKey: ["kbs"] })} />
       <KbDetailModal kbId={settingsKbId} sourceKbs={sourceKbs} canManage={canManage} onClose={() => setSettingsKbId(null)} />

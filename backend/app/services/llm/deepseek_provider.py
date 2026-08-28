@@ -1,7 +1,5 @@
-from app.services.llm.base import LLMProvider
+from app.services.llm.openai_provider import OpenAILLMProvider
 
 
-class DeepSeekLLMProvider(LLMProvider):
-    async def complete(self, messages: list[dict[str, str]]) -> str:
-        raise NotImplementedError
-
+class DeepSeekLLMProvider(OpenAILLMProvider):
+    """DeepSeek exposes an OpenAI-compatible Chat Completions API."""

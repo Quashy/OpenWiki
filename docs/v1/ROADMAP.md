@@ -91,7 +91,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M0 | 工程与契约基线可启动、可迁移、可校验 | — | 已完成 | 2026-08-27：迁移、OpenAPI lint、前后端基础检查通过 |
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
-| M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 未开始 | 六阶段 ingest、页面、图谱交互、六阶段 trace 通过 |
+| M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
 | M4 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M5 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M6 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
@@ -265,6 +265,15 @@ M0 不交付业务接口；只建立接口契约和后端测试入口。
 - 全量重建期间 Wiki KB 不可查询，完成后恢复可用。
 - 图谱视图支持缩放、拖拽、节点跳转、实体类型和关系类型筛选。
 - Wiki ingest 可在 Langfuse 中按 trace 查看六阶段各 span 的 LLM 输入输出。
+
+**推进记录（2026-08-28）**
+
+- 后端：新增 Wiki 页面、修订、实体、关系模型和迁移；实现 `POST /wiki/{kb_id}/ingest`、`POST /wiki/{kb_id}/rebuild`、`GET /wiki/{kb_id}/pages`、`GET /wiki-pages/{page_id}`、`GET /wiki/{kb_id}/graph`。
+- 流水线：接入六阶段任务状态、页面 upsert、来源页、实体/概念页、overview、analysis、index、Wiki page chunk 重新向量化、实体关系 upsert、审计日志和 Langfuse `wiki_ingest` trace；真实运行优先使用 `.env` 中 `DEEPSEEK_API_KEY`。
+- 前端：Wiki 浏览器支持目录树、搜索、类型筛选、任务进度和双链跳转；知识图谱支持 ECharts 缩放/拖拽、实体类型/关系类型筛选、节点跳转 Wiki 页面。
+- 自动化检查：`python -m pytest "backend/tests"` 通过，20 passed；`npm --prefix "frontend" run build` 通过，存在 Vite chunk size warning；`npm run api:lint` 通过；`python -m alembic upgrade head --sql` 通过。
+- 真实环境烟测：使用 DeepSeek Key、Ollama embedding、Docker Compose 后端/worker/db/redis/Langfuse，上传固定语料并触发 Wiki ingest，任务 `fd643a77-f883-4564-b69b-5a3993d799bd` 完成；返回 trace_id `a01ee1b2-781d-4b6f-8f1a-1d6a432f4be5`；生成 11 个页面，覆盖 `index/source/entity/concept/overview/analysis`；图谱 7 个节点、21 条边。
+- 页面质量自查：真实生成的 11 个页面死链数 0，内部标记残留页面数 0。
 
 ### M4：单 KB RAG 问答（🎯 Demo 达成）
 
