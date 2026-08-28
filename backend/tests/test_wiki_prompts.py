@@ -83,7 +83,7 @@ def test_wiki_prompt_builders_render_version_metadata_and_no_placeholders() -> N
     for prompt in prompts:
         assert prompt.metadata["prompt_family"] == PROMPT_FAMILY
         assert prompt.metadata["prompt_version"] == PROMPT_VERSION
-        assert PROMPT_VERSION == "wiki_prompt_v0.2"
+        assert PROMPT_VERSION == "wiki_prompt_v0.3"
         assert "{{" not in prompt.system
         assert "{{" not in prompt.user
         assert "}}" not in prompt.system
@@ -97,6 +97,9 @@ def test_wiki_prompt_builders_keep_required_output_contracts() -> None:
     assert '"candidates"' in extract.user
     assert "entity/..." in extract.user
     assert "concept/..." in extract.user
+    assert "slug 必须表达对象本身" in extract.user
+    assert "aliases 必须覆盖输入中明确指向同一对象的所有名称写法" in extract.user
+    assert "编号、订单号、预约号、取件码、车次号、合同号、工单号" in extract.user
 
     assert "<stage>dedup</stage>" in dedup.user
     assert '"merges"' in dedup.user
@@ -106,6 +109,8 @@ def test_wiki_prompt_builders_keep_required_output_contracts() -> None:
     assert '"citations"' in citation.user
     assert '"chunk_ids"' in citation.user
     assert "chunk_id 必须逐字来自 chunks_json 的 id" in citation.user
+    assert "不要只看 canonical name" in citation.user
+    assert "关键参数、冲突事实或关系来自不同 chunk" in citation.user
 
     assert "<stage>taxonomy</stage>" in taxonomy.user
     assert '"category_path"' in taxonomy.user
@@ -119,6 +124,8 @@ def test_wiki_prompt_builders_keep_required_output_contracts() -> None:
     assert '"content"' in reduce.user
     assert '"relations"' in reduce.user
     assert "不得链接到 candidate_json 自己的 slug" in reduce.user
+    assert "必须原样保留 chunks 明确给出的关键事实" in reduce.user
+    assert "计划与配套模板/记录" in reduce.user
 
     assert "<stage>overview</stage>" in overview.user
     assert "不要生成索引目录清单" in overview.user
@@ -143,4 +150,4 @@ def test_observed_llm_span_records_prompt_version_metadata() -> None:
     assert trace.spans[0].name == "llm_extract"
     assert trace.spans[0].metadata["prompt_family"] == "wiki_ingest"
     assert trace.spans[0].metadata["prompt_stage"] == "extract"
-    assert trace.spans[0].metadata["prompt_version"] == "wiki_prompt_v0.2"
+    assert trace.spans[0].metadata["prompt_version"] == "wiki_prompt_v0.3"
