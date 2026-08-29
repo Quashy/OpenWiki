@@ -366,7 +366,11 @@ class ObservedLLMProvider(LLMProvider):
                 timeout_seconds=timeout_seconds,
                 prompt_metadata=prompt_metadata,
             )
-            span.update(input=messages, output=response)
+            response_metadata = getattr(self.delegate, "last_response_metadata", None)
+            update_payload: dict[str, Any] = {"input": messages, "output": response}
+            if isinstance(response_metadata, dict) and response_metadata:
+                update_payload["metadata"] = {**metadata, **response_metadata}
+            span.update(**update_payload)
             return response
 
 
@@ -750,14 +754,16 @@ async def llm_json(
     *,
     prompt: WikiPrompt,
     config: WikiConfig,
+    metadata: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     if llm is None:
         return None
+    prompt_metadata = {**prompt.metadata, **(metadata or {})}
     response = await llm.complete(
         [{"role": "system", "content": prompt.system}, {"role": "user", "content": prompt.user}],
         temperature=config.temperature,
         timeout_seconds=config.llm_timeout_seconds,
-        prompt_metadata=prompt.metadata,
+        prompt_metadata=prompt_metadata,
     )
     return parse_json_object(response)
 
@@ -915,6 +921,7 @@ async def llm_reduce(
         llm,
         prompt=prompt,
         config=config,
+        metadata={"candidate_slug": candidate.slug, "candidate_name": candidate.name},
     )
     if not payload:
         return None, []

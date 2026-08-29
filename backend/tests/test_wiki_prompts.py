@@ -1,6 +1,7 @@
 import asyncio
 
 from app.services.llm.base import LLMProvider
+from app.services.llm.openai_provider import build_response_metadata
 from app.services.wiki.pipeline import ObservedLLMProvider
 from app.services.wiki.prompts import (
     PROMPT_FAMILY,
@@ -43,6 +44,27 @@ class CapturingTrace:
 
 
 class StaticLLMProvider(LLMProvider):
+    async def complete(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float | None = None,
+        timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
+    ) -> str:
+        return "{}"
+
+
+class MetadataLLMProvider(LLMProvider):
+    def __init__(self) -> None:
+        self.last_response_metadata = {
+            "llm_response_model": "deepseek-v4-flash",
+            "llm_response_finish_reason": "stop",
+            "llm_response_usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12},
+            "llm_response_choice_metadata": {"index": 0, "finish_reason": "stop"},
+            "llm_response_content_empty": False,
+        }
+
     async def complete(
         self,
         messages: list[dict[str, str]],
@@ -151,3 +173,54 @@ def test_observed_llm_span_records_prompt_version_metadata() -> None:
     assert trace.spans[0].metadata["prompt_family"] == "wiki_ingest"
     assert trace.spans[0].metadata["prompt_stage"] == "extract"
     assert trace.spans[0].metadata["prompt_version"] == "wiki_prompt_v0.3"
+
+
+def test_observed_llm_span_updates_response_metadata() -> None:
+    trace = CapturingTrace()
+    llm = ObservedLLMProvider(MetadataLLMProvider(), trace)
+    prompt = sample_prompts()[0]
+
+    asyncio.run(
+        llm.complete(
+            [{"role": "system", "content": prompt.system}, {"role": "user", "content": prompt.user}],
+            temperature=0.2,
+            timeout_seconds=60,
+            prompt_metadata=prompt.metadata,
+        )
+    )
+
+    assert trace.spans[0].updates
+    metadata = trace.spans[0].updates[-1]["metadata"]
+    assert metadata["prompt_version"] == "wiki_prompt_v0.3"
+    assert metadata["llm_response_model"] == "deepseek-v4-flash"
+    assert metadata["llm_response_finish_reason"] == "stop"
+    assert metadata["llm_response_usage"]["total_tokens"] == 12
+    assert metadata["llm_response_choice_metadata"] == {"index": 0, "finish_reason": "stop"}
+
+
+def test_build_response_metadata_keeps_choice_diagnostics_without_message_content() -> None:
+    metadata = build_response_metadata(
+        {
+            "id": "chatcmpl-1",
+            "model": "deepseek-v4-flash",
+            "created": 1798500000,
+            "usage": {"prompt_tokens": 100, "completion_tokens": 0, "total_tokens": 100},
+        },
+        {
+            "index": 0,
+            "finish_reason": "content_filter",
+            "message": {"role": "assistant", "content": "", "refusal": "filtered"},
+        },
+        "",
+        http_status_code=200,
+    )
+
+    assert metadata["llm_response_http_status"] == 200
+    assert metadata["llm_response_id"] == "chatcmpl-1"
+    assert metadata["llm_response_model"] == "deepseek-v4-flash"
+    assert metadata["llm_response_finish_reason"] == "content_filter"
+    assert metadata["llm_response_usage"]["prompt_tokens"] == 100
+    assert metadata["llm_response_choice_metadata"] == {"index": 0, "finish_reason": "content_filter"}
+    assert metadata["llm_response_message_metadata"] == {"role": "assistant", "refusal": "filtered"}
+    assert metadata["llm_response_content_length"] == 0
+    assert metadata["llm_response_content_empty"] is True
