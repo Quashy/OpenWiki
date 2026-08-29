@@ -255,7 +255,7 @@ async def process_wiki_ingest_job(
         await update_task_state(session, task, status="running", stage="reducing", progress=70)
 
         with trace.span(name="reduce", metadata={"candidate_count": len(candidates)}):
-            await write_candidate_pages(
+            reduce_degraded_pages = await write_candidate_pages(
                 session,
                 llm,
                 kb=kb,
@@ -265,6 +265,7 @@ async def process_wiki_ingest_job(
                 chunks_by_doc=chunks_by_doc,
                 config=config,
             )
+            task.payload = {**task.payload, "reduce_degraded_pages": reduce_degraded_pages}
         await update_task_state(session, task, status="running", stage="postprocessing", progress=88)
 
         with trace.span(name="postprocess", metadata={"candidate_count": len(candidates)}):
@@ -506,14 +507,11 @@ async def cite_candidates(
     for candidate in candidates:
         chunk_ids = [chunk_id for chunk_id in llm_citations.get(candidate.slug, []) if chunk_id in by_id]
         if not chunk_ids:
-            names = [candidate.name, *candidate.aliases]
             chunk_ids = [
                 chunk.id
                 for chunk in all_chunks
-                if any(name and name.lower() in chunk.content.lower() for name in names)
+                if candidate_mentioned_in_chunks(candidate, [chunk])
             ][:6]
-        if not chunk_ids:
-            chunk_ids = [chunk.id for chunk in all_chunks[:3]]
         result[candidate.slug] = chunk_ids
     return result
 
@@ -527,6 +525,87 @@ def source_citations_for_chunks(chunks: list[Chunk]) -> list[dict[str, Any]]:
         {"document_id": document_id, "chunk_ids": chunk_ids}
         for document_id, chunk_ids in sorted(grouped.items())
     ]
+
+
+def reduce_allowed_link_candidates(
+    *,
+    candidate: WikiCandidate,
+    candidates: list[WikiCandidate],
+    chunks: list[Chunk],
+) -> list[WikiCandidate]:
+    return [
+        item
+        for item in candidates
+        if item.slug != candidate.slug and candidate_mentioned_in_chunks(item, chunks)
+    ]
+
+
+def supported_reduce_relations(
+    *,
+    candidate: WikiCandidate,
+    allowed_candidates: list[WikiCandidate],
+    chunks: list[Chunk],
+    relations: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not candidate_mentioned_in_chunks(candidate, chunks):
+        return []
+    allowed_by_slug = {item.slug: item for item in allowed_candidates}
+    supported: list[dict[str, Any]] = []
+    for item in relations:
+        target_slug = normalize_slug(str(item.get("target_slug") or ""))
+        if not target_slug or target_slug == candidate.slug:
+            continue
+        target = allowed_by_slug.get(target_slug)
+        if target is None or not candidate_mentioned_in_chunks(target, chunks):
+            continue
+        relation_type = str(item.get("relation_type") or "").strip()
+        if not relation_type:
+            continue
+        supported.append({"target_slug": target_slug, "relation_type": relation_type[:64]})
+    return supported
+
+
+def relation_evidence_chunk_id(
+    *,
+    candidate: WikiCandidate,
+    target: WikiCandidate,
+    chunks: list[Chunk],
+) -> str | None:
+    for chunk in chunks:
+        if candidate_mentioned_in_chunks(candidate, [chunk]) and candidate_mentioned_in_chunks(target, [chunk]):
+            return chunk.id
+    for chunk in chunks:
+        if candidate_mentioned_in_chunks(target, [chunk]):
+            return chunk.id
+    return chunks[0].id if chunks else None
+
+
+def candidate_mentioned_in_chunks(candidate: WikiCandidate, chunks: list[Chunk]) -> bool:
+    haystack = normalize_evidence_text(
+        "\n".join(
+            [
+                *[" > ".join(str(part) for part in chunk.header_path) for chunk in chunks],
+                *[chunk.content for chunk in chunks],
+            ]
+        )
+    )
+    if not haystack:
+        return False
+    return any(term and term in haystack for term in candidate_evidence_terms(candidate))
+
+
+def candidate_evidence_terms(candidate: WikiCandidate) -> list[str]:
+    surfaces = [candidate.name, *candidate.aliases, candidate.slug.rsplit("/", 1)[-1].replace("-", " ")]
+    terms: list[str] = []
+    for surface in surfaces:
+        normalized = normalize_evidence_text(surface)
+        if normalized and normalized not in terms:
+            terms.append(normalized)
+    return terms
+
+
+def normalize_evidence_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.casefold()).strip()
 
 
 async def plan_taxonomy(
@@ -583,18 +662,33 @@ async def write_candidate_pages(
     taxonomy: dict[str, list[str]],
     chunks_by_doc: dict[str, list[Chunk]],
     config: WikiConfig,
-) -> None:
+) -> list[dict[str, str]]:
     chunk_lookup = {
         chunk.id: chunk
         for chunks in chunks_by_doc.values()
         for chunk in chunks
     }
     entities_by_slug: dict[str, Entity] = {}
+    degraded_pages: list[dict[str, str]] = []
     for candidate in candidates:
         source_chunks = [chunk_lookup[chunk_id] for chunk_id in citations.get(candidate.slug, []) if chunk_id in chunk_lookup]
-        markdown, relations = await llm_reduce(llm, candidate=candidate, candidates=candidates, chunks=source_chunks, config=config)
-        if not markdown:
-            markdown = fallback_candidate_markdown(candidate, candidates, source_chunks)
+        allowed_link_candidates = reduce_allowed_link_candidates(
+            candidate=candidate,
+            candidates=candidates,
+            chunks=source_chunks,
+        )
+        markdown, relations = await llm_reduce(
+            llm,
+            candidate=candidate,
+            candidates=allowed_link_candidates,
+            chunks=source_chunks,
+            config=config,
+        )
+        if markdown is None or not markdown.strip():
+            reason = "llm_reduce_empty_output"
+            degraded_pages.append({"slug": candidate.slug, "reason": reason})
+            markdown = fallback_candidate_markdown(candidate, source_chunks, reason=reason)
+        source_refs = sorted({chunk.document_id for chunk in source_chunks if chunk.document_id}) or candidate.source_refs
         page = await upsert_wiki_page(
             session,
             kb_id=kb.id,
@@ -604,7 +698,7 @@ async def write_candidate_pages(
             markdown=markdown,
             category_path=taxonomy[candidate.slug],
             aliases=candidate.aliases,
-            source_refs=candidate.source_refs,
+            source_refs=source_refs,
             source_citations=source_citations_for_chunks(source_chunks),
             change_summary=f"归并 {candidate.name}",
         )
@@ -621,12 +715,17 @@ async def write_candidate_pages(
         entities_by_slug[candidate.slug] = entity
         await session.commit()
 
-        relation_items = relations or fallback_relations(candidate, candidates)
+        relation_items = supported_reduce_relations(
+            candidate=candidate,
+            allowed_candidates=allowed_link_candidates,
+            chunks=source_chunks,
+            relations=relations,
+        )
         for item in relation_items:
             target_slug = normalize_slug(str(item.get("target_slug") or ""))
             if not target_slug or target_slug == candidate.slug:
                 continue
-            target = next((candidate_item for candidate_item in candidates if candidate_item.slug == target_slug), None)
+            target = next((candidate_item for candidate_item in allowed_link_candidates if candidate_item.slug == target_slug), None)
             if target is None:
                 continue
             target_entity = entities_by_slug.get(target.slug)
@@ -642,15 +741,21 @@ async def write_candidate_pages(
                     wiki_page_id=None,
                 )
                 entities_by_slug[target.slug] = target_entity
+            relation_source_chunk_id = relation_evidence_chunk_id(
+                candidate=candidate,
+                target=target,
+                chunks=source_chunks,
+            )
             await upsert_relation(
                 session,
                 kb_id=kb.id,
                 source_entity_id=entity.id,
                 target_entity_id=target_entity.id,
                 relation_type=str(item.get("relation_type") or "相关")[:64],
-                source_chunk_id=source_chunks[0].id if source_chunks else None,
+                source_chunk_id=relation_source_chunk_id,
             )
         await session.commit()
+    return degraded_pages
 
 
 async def write_postprocess_pages(
@@ -1213,7 +1318,10 @@ def high_confidence_same(source: WikiCandidate, target: WikiCandidate | WikiPage
     if not source_tokens or not target_tokens:
         return False
     smaller, larger = sorted([source_tokens, target_tokens], key=len)
-    return len(smaller) >= 2 and smaller.issubset(larger)
+    if len(smaller) < 2 or not smaller.issubset(larger):
+        return False
+    extra_tokens = larger - smaller
+    return not extra_tokens or extra_tokens.issubset(GENERIC_SUFFIX_TOKENS)
 
 
 def better_dedup_target(source: WikiCandidate, target: WikiCandidate | WikiPage) -> str:
@@ -1356,26 +1464,16 @@ def fallback_source_summary(document: Document, chunks: list[Chunk], candidates:
     )
 
 
-def fallback_candidate_markdown(candidate: WikiCandidate, candidates: list[WikiCandidate], chunks: list[Chunk]) -> str:
-    related = [item for item in candidates if item.slug != candidate.slug][:4]
-    links = ", ".join(f"[[{item.slug}|{item.name}]]" for item in related)
+def fallback_candidate_markdown(candidate: WikiCandidate, chunks: list[Chunk], *, reason: str) -> str:
     evidence = "\n".join(f"- {chunk.content[:240]}" for chunk in chunks[:4])
     return (
         f"SUMMARY: {candidate.description}\n\n"
-        "## 概览\n\n"
-        f"{candidate.description}\n\n"
-        "## 相关条目\n\n"
-        f"{links or '暂无关联条目'}\n\n"
+        "## 生成状态\n\n"
+        f"- Reduce 阶段未返回有效内容，页面已按降级状态保存（{reason}）。\n"
+        "- 以下内容只来自当前页面的 citation chunks。\n\n"
         "## 来源证据\n\n"
         f"{evidence or '- 暂无可用证据'}"
     )
-
-
-def fallback_relations(candidate: WikiCandidate, candidates: list[WikiCandidate]) -> list[dict[str, Any]]:
-    for item in candidates:
-        if item.slug != candidate.slug:
-            return [{"target_slug": item.slug, "relation_type": "相关"}]
-    return []
 
 
 def fallback_overview(candidates: list[WikiCandidate]) -> str:

@@ -79,6 +79,15 @@ def test_dedup_keeps_related_but_different_candidates_separate() -> None:
     assert {item.slug for item in merged} == {"entity/morning-light-cafe", "entity/morning-light-baking-class"}
 
 
+def test_dedup_does_not_merge_place_with_larger_place_name_sharing_slug_prefix() -> None:
+    candidates = [
+        candidate(name="西湖", slug="entity/west-lake"),
+        candidate(name="西湖花园酒店", slug="entity/west-lake-garden-hotel"),
+    ]
+
+    assert deterministic_dedup_merges(candidates, []) == {}
+
+
 def test_dedup_rejects_cross_type_merge_and_uses_existing_page_target() -> None:
     existing = WikiPage(
         id="page-1",

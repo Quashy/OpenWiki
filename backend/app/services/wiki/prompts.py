@@ -443,7 +443,8 @@ content：
 relations：
 - 从 chunks_json 中抽取与当前 candidate 直接相关的关系。
 - target_slug 必须来自 allowed_links_json，且不能等于 candidate slug。
-- relation_type 使用简短中文动词或关系短语，如 "属于"、"依赖"、"负责"、"使用"、"包含"、"替代"、"位于"、"相关"。
+- relation_type 使用原文能支持的简短中文动词或关系短语，如 "属于"、"依赖"、"负责"、"使用"、"包含"、"替代"、"位于"。
+- 不要输出泛化的 "相关" 关系；除非原文逐字表达两者相关且解释了关系含义，否则返回空数组。
 - 不要输出自环关系。
 - 没有明确关系时返回空数组。
 - 当 chunks 明确表达当前 candidate 与白名单页面之间的关系时，应输出 relation，不要只写在正文中。
