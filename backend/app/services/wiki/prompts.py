@@ -1,11 +1,11 @@
-"""Wiki ingest prompt builders for ``wiki_prompt_v0.4``."""
+"""Wiki ingest prompt builders for ``wiki_prompt_v0.3``."""
 
 import json
 from dataclasses import dataclass
 from typing import Any
 
 PROMPT_FAMILY = "wiki_ingest"
-PROMPT_VERSION = "wiki_prompt_v0.4"
+PROMPT_VERSION = "wiki_prompt_v0.3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,7 +24,7 @@ def build_extract_prompt(
     custom_instructions: str = "",
 ) -> WikiPrompt:
     return WikiPrompt(
-        system="你是企业 Wiki 的结构化抽取器。只输出合法 JSON，不要输出解释。\n你的任务是从输入 chunks 中抽取应该创建或更新 Wiki 页的实体和概念候选项；用通用身份和证据规则判断，不针对某个样例优化。",
+        system="你是企业 Wiki 的结构化抽取器。只输出合法 JSON，不要输出解释。\n你的任务是从输入 chunks 中抽取应该创建或更新 Wiki 页的实体和概念候选项。",
         user=f"""<stage>extract</stage>
 
 <document_id>
@@ -68,14 +68,6 @@ def build_extract_prompt(
 - 编号、日期、金额、规格、取件码、预约码等通常是事实属性；只有它们本身被独立解释、追踪或管理时才抽成页面。
 - 模板、清单、表单、记录格式、说明书等文档型产物如果被作为独立对象讨论，可以抽成 entity 或 concept；其中的占位字段、示例填充值、待填写说明不得抽成页面，也不得当作真实事实。
 
-通用身份判定：
-- 先判断“这个文本片段是在定义/描述一个可持续引用的对象，还是只给出某对象的属性、参数、状态、示例或操作提示”。
-- 可持续引用的对象才是候选页面；属性值、编号、日期、数量、字段名、状态词和一次性修饰语通常归属于最近的稳定对象。
-- 如果一个事项在文本中有参与方、时间、地点、状态、材料、费用、约束或后续动作，它通常是一个具体 entity；不要因为文本写成“说明、记录、清单、通知”就自动降为 concept。
-- 如果一个条目描述的是可复用规则、方法、标准、分类、参数含义或判断逻辑，它通常是 concept。
-- 同一身份可以跨 chunk 由不同表面名称、编号或上下文线索共同确认；抽取前先合并这些线索，再输出一个 candidate。
-- 不确定是否值得建页时，优先看该条目是否能承载两个以上可验证事实或一条可验证关系；不能承载时不要抽取。
-
 Slug 规则：
 - 如果 existing_slugs 中已有同一对象的 slug，必须复用原 slug。
 - 如果旧 slug 对应对象未在当前 chunks 中出现，不要输出。
@@ -84,8 +76,6 @@ Slug 规则：
 - slug 优先使用输入中已有的稳定英文专名、官方代码或可直译的对象语义；没有稳定英文时再使用拼音或罗马化。
 - 同一对象有多个名称时，slug 选择最稳定、最通用、最能代表对象身份的名称，不随不同文档的标题、别称或语言变化而漂移。
 - 具体事项类对象的 slug 应表达“事项类型 + 核心对象”，避免只使用泛词如 record、note、template、plan，也避免把编号、日期、数量、颜色、尺寸等属性放进 slug，除非该编号本身是对象的主要名称。
-- 高熵标识符、流水号、订单号、预约号、取件码、合同号、工单号、哈希和 UUID 不能作为 primary slug；除非文档明确把该标识符本身定义为被管理对象的正式名称。
-- 当文本只有编号很稳定、语义名称较泛时，slug 仍应选择对象类型加业务语义，编号进入 aliases 或 description。
 - 同一候选项的 name、slug、page_type 必须互相一致，不要用 entity slug 搭配 concept 语义。
 
 Alias 规则：
@@ -99,9 +89,6 @@ Alias 规则：
 - 只有一次顺带提及、列表中无解释的技术名、泛泛背景词，不要抽。
 - 不要根据文件名、document_id 或外部知识补充条目。
 - 明确标注为示例、占位、待填写、可替换、未确认的信息，只能作为“非事实状态”描述，不得提升为真实实体属性。
-- 把文本片段先归类为：事实、未确认事实、示例、占位、操作提示、免责声明、格式说明。只有事实和未确认事实可以支撑候选页面或页面事实。
-- 示例、占位、操作提示和免责声明不得成为候选页面的事实来源；只有当页面主题就是模板/表单/说明书本身时，才能概括其存在“占位字段或填写说明”，但不能保留占位值为真实事实。
-
 正反例：
 - 正例：输入描述一个具体预约事项，并包含预约编号、时间、地点；输出一个预约事项 entity，编号放入 aliases 或 description。
 - 反例：只因为出现预约编号，就把编号、时间、地点分别抽成三个互不相关的核心页面。
@@ -142,7 +129,7 @@ def build_citation_prompt(
     chunks: list[dict[str, Any]],
 ) -> WikiPrompt:
     return WikiPrompt(
-        system="你是 Wiki 引用标注器。只输出合法 JSON，不要输出解释；chunk_id 必须来自输入 chunks。引用选择要服务于证据覆盖，不针对单一字段补丁。",
+        system="你是 Wiki 引用标注器。只输出合法 JSON，不要输出解释；chunk_id 必须来自输入 chunks。",
         user=f"""<stage>citation</stage>
 
 <candidates_json>
@@ -170,9 +157,6 @@ def build_citation_prompt(
 - 判断证据时要同时匹配 candidate 的 name、slug 末尾语义、aliases、编号和唯一标识符；不要只看 canonical name。
 - 优先选择包含定义、身份、编号、日期、时间、金额、规格、尺寸、数量、地点、参与方、状态、关系、约束、决策或更新的 chunk。
 - 如果 candidate 的名称、aliases、编号、关键参数、冲突事实或关系来自不同 chunk，应保留多个 chunk_id。
-- 引用集合应覆盖三类证据：身份证据、关键事实证据、关系证据；这些证据分散在多个 chunk 时必须多选。
-- 如果某 chunk 通过上下文、代词、别名、编号或标题延续讨论同一 candidate，且给出了新事实或关系，也应引用。
-- 如果后续 chunk 对同一对象给出更新、修正、限制、例外或否定，它与原始 chunk 都应保留，供 Reduce 处理冲突与更新。
 - 如果 chunk 说明一个模板、清单、表单或记录格式本身的用途和字段，它可以作为该模板/清单/表单/记录的证据；但字段占位值和示例值不能当作真实事实。
 - 只含目录、标题、免责声明、无上下文的模板占位或示例说明的 chunk 通常不是实质证据。
 
@@ -411,7 +395,7 @@ def build_reduce_prompt(
     existing_page_markdown: str = "",
 ) -> WikiPrompt:
     return WikiPrompt(
-        system="你是 Wiki 页面归并器。只输出合法 JSON；content 字段首行必须是 SUMMARY: ...；relations 与正文分离。\n你是 compiler，不是创意写作者。新增事实必须由输入 chunks 直接支持，并按通用证据规则过滤噪音。",
+        system="你是 Wiki 页面归并器。只输出合法 JSON；content 字段首行必须是 SUMMARY: ...；relations 与正文分离。\n你是 compiler，不是创意写作者。新增事实必须由输入 chunks 直接支持。",
         user=f"""<stage>reduce</stage>
 
 <candidate_json>
@@ -450,13 +434,6 @@ content：
 - 如果冲突不明确，不覆盖旧内容，只在 `## 冲突与更新` 说明待确认。
 - 对明确标注为示例、占位、待填写、可替换或未确认的内容，只能写明其状态，不能把占位值当成真实人物、地点、金额或结论。
 
-写作前的通用校验：
-- 先在内部建立事实清单：页面身份、同义名称、稳定标识符、已确认事实、未确认事实、非事实文本、显式关系。
-- 正文只能写入已确认事实和带不确定性标注的未确认事实；非事实文本只能用于说明“存在占位/示例/待填写说明”，不能原样当作业务事实。
-- 每个保留下来的高信息事实都应回答至少一个问题：对象是什么、何时、何地、由谁、有什么数值/状态/限制、与谁有什么关系、发生了什么更新。
-- 如果 chunks 同时包含概括句和更具体的数值/限制/状态，优先保留具体事实，避免只写抽象摘要。
-- 如果 chunks 不足以支撑页面身份，输出围绕 candidate 的最小页面，不补背景、不补原因、不补建议。
-
 双链：
 - 只允许使用 allowed_links_json 中的 slug。
 - 不得链接到 candidate_json 自己的 slug。
@@ -475,9 +452,6 @@ relations：
 - 对事项与地点、事项与人员/组织、事项与物品/材料、事项与交通/住宿/预约、计划与配套模板/记录、规则与适用对象之间的显式关系，应优先输出结构化 relation。
 - 关系必须围绕当前 candidate；不要输出两个第三方页面之间的关系。
 - 如果关系只来自推断或常识，不要输出。
-- 输出关系前检查三个条件：当前 candidate 被 chunk 直接讨论、target_slug 在 allowed_links_json 中、chunk 中存在明确关系词或清晰的语义连接。
-- 如果正文中出现了 allowed_links_json 中的另一个条目，并且该句表达可验证关系，relations 中也必须输出对应结构化关系。
-
 正反例：
 - 正例：原文说明当前事项使用某工具，且工具在 allowed_links_json 中；输出 target_slug 为该工具的 "使用" 关系。
 - 正例：原文说明当前安排发生在某地点，且地点在 allowed_links_json 中；输出 "位于" 或 "发生于" 关系。
