@@ -1,10 +1,10 @@
 # OpenWiki V2 v1 开发路线图
 
-> 版本：v2.9
+> 版本：v2.10
 > 日期：2026-08-29
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.9 — M5 方案 B 已完成并通过集成测试；单 KB Chat API、SSE、Dense/Sparse/GraphRAG + RRF、引用溯源、Markdown 渲染、Langfuse trace 与 QA runner 已落地；无关问题通过检索阈值和无引用返回避免误挂知识库引用。
+> 变更：v2.10 — 在不改变 M5 已完成口径的前提下，补充 WeKnora 检索链路对标与 M7 检索质量演进候选；Rerank、MMR 去冗余、父子/邻接 chunk 上下文扩展、多 KB / 多存储 fanout、Web Search 并行均不属于当前 v1 demo 必需范围。
 
 ---
 
@@ -84,6 +84,19 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 - RAG 问答质量：query、召回 chunk、引用命中率、回答评分、无答案率。
 - 成本与性能：模型调用次数、token、耗时 P50/P95，并按模型、KB 维度拆分。
 
+### 2.4 检索链路开源对标与演进方向
+
+当前 M5 已完成的 v1 demo 检索链路为：单 `kb_id` 范围内 Query Rewrite -> Dense（pgvector）/Sparse（pg_bigm）/GraphRAG 三路召回 -> RRF 融合 -> Wiki page boost -> Top-8 -> 引用 grounding -> SSE 回答。该链路满足 demo 闭环，但仍是偏轻量的检索实现。
+
+以 Tencent WeKnora 当前开源实现为参考，其 RAG 检索链路包含更完整的工程增强：QueryUnderstand 做改写与意图识别；知识库检索与 Web Search 可并行；多 KB / 多向量库按 embedding model 与 store 分组 fanout；Vector + Keyword 混合召回后使用 RRF；低召回时可 query expansion；融合后进入 rerank model；rerank 后做阈值过滤、阈值降级兜底、composite score、FAQ boost 与 MMR 去冗余；随后执行父子 chunk 解析、邻接 chunk 扩展、连续片段合并、重复/重叠内容去重，最后再 TopK 截断并组装引用。
+
+OpenWikiV2 后续检索演进按收益/复杂度分层处理：
+
+- M6 不扩大检索范围，优先完成工程补齐、观测闭环、固定语料验收和单用户性能自查；若 QA 失败明确指向上下文过短或重复，可做最小修复。
+- M7 优先候选：`RRF Top 20/30 -> Rerank -> MMR -> Top 8`，并增加父子/邻接 chunk 上下文扩展；引用仍指向原命中 chunk，避免溯源语义变复杂。
+- M7 视真实需求再考虑：多 KB 联合问答、多存储 fanout、Web Search 并行、FAQ 专用 boost、query expansion、图谱检索增强。
+- 不直接照搬 WeKnora 的完整 agent pipeline；只有当现有 QA eval 或试用数据证明召回、排序、去冗余、上下文完整性存在稳定问题时，才进入实现。
+
 ## 3. 里程碑总览
 
 状态只使用：`未开始`、`进行中`、`阻塞`、`已完成`。
@@ -97,7 +110,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；当前接受版本 `wiki_prompt_v0.3` 已接入 6 个现有阶段与 Dedup，并记录 prompt version trace；`wiki_prompt_v0.4` 已因指标回退撤回；不做完整验收，剩余为 Scenario Eval runner、质量报告和 QA 反馈驱动的质量修复 |
 | M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 已完成 | 2026-08-29：方案 B 完成；单 KB 会话/API、SSE、三路检索 + RRF、引用角标/详情、Markdown 渲染、Langfuse trace、QA runner 与 Docker 集成测试通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
-| M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
+| M7 | 检索质量、多 KB / Web Search 等真实需求驱动演进 | 演进 | 未开始 | 由试用数据、QA eval 或明确需求触发；优先候选为 Rerank、MMR 去冗余、父子/邻接 chunk 上下文扩展 |
 
 ## 4. 里程碑明细
 
@@ -163,6 +176,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | 4.5.9 | 图谱可视化（ECharts 缩放/拖拽/跳转/筛选） | v1 | M3（已完成） |
 | 4.6.1 | 问答入口（对话界面、选择知识库） | 部分：单 KB 收敛，多选后置；真实会话/API 和前端入口已完成 | M5（已完成） |
 | 4.6.2 | 多路混合检索（三路并行 + RRF + Wiki boost） | v1：Dense/Sparse/GraphRAG 三路召回、RRF、Wiki boost、阈值过滤已完成 | M5（已完成） |
+| 4.6.2 | 检索质量增强（Rerank、MMR 去冗余、父子/邻接 chunk 上下文扩展、query expansion） | 部分：参考 WeKnora 等开源实现作为 M7 候选；不纳入 M5 完成口径，需由 QA eval 或试用数据触发 | M7 |
 | 4.6.3 | RAG 问答流程（改写、检索、流式、进度） | v1：历史加载、查询改写、检索、流式回答、AI 气泡内进度已完成 | M5（已完成） |
 | 4.6.4 | 引用溯源（角标、来源列表、跳转、类型区分） | v1：角标联动、引用详情、Wiki 跳转、Markdown 渲染已完成；原文精确定位后置 | M5（已完成） |
 | 4.6.4 | QA 评估（复用 Wiki eval questions、召回/引用/无答案指标） | v1：M5 QA runner 与指标输出已完成；Wiki 质量失败继续回流 M4 | M5（已完成） |
