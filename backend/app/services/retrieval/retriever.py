@@ -43,8 +43,15 @@ async def hybrid_search(
         kb_ids=[kb.id],
         query_embedding=query_embedding,
         top_k=per_source_top_k,
+        min_score=settings.dense_min_score,
     )
-    sparse_results = await sparse_search(session, kb_ids=[kb.id], query=query, top_k=per_source_top_k)
+    sparse_results = await sparse_search(
+        session,
+        kb_ids=[kb.id],
+        query=query,
+        top_k=per_source_top_k,
+        min_score=settings.sparse_min_score,
+    )
     graph_results = await graph_search(session, kb_id=kb.id, query=query, top_k=per_source_top_k)
     fused = reciprocal_rank_fusion(
         [dense_results, sparse_results, graph_results],

@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -11,7 +12,7 @@ from app.errors import ApiError
 from app.models import ChatMessage, ChatSession, Chunk, Document, KnowledgeBase, WikiPage
 from app.models.m1 import now_utc
 from app.prompts.fallback import deterministic_answer, no_evidence_answer
-from app.prompts.qa import build_qa_messages
+from app.prompts.qa import build_general_chat_messages, build_qa_messages
 from app.prompts.rewrite import rewrite_query
 from app.schemas import (
     ChatMessageOut,
@@ -276,6 +277,13 @@ def retrieval_metadata(result: HybridSearchResult) -> dict[str, int]:
     }
 
 
+def citations_used_in_answer(answer: str, citations: list[Citation]) -> list[Citation]:
+    used_ids = {int(match) for match in re.findall(r"\[(\d+)\]", answer)}
+    if not used_ids:
+        return []
+    return [citation for citation in citations if citation.id in used_ids]
+
+
 async def stream_chat_answer(
     session: AsyncSession,
     *,
@@ -352,16 +360,22 @@ async def stream_chat_answer(
 
         with trace.span(name="merge_filter", metadata=retrieval_metadata(search_result)):
             citations = await citation_rows(session, search_result.fused)
+            if len(citations) < settings.retrieval_min_results:
+                citations = []
 
         yield sse_event("progress", {"stage": "completion", "message": "正在生成回答..."})
-        if not citations:
+        if llm is None and not citations:
             answer = no_evidence_answer()
             yield sse_event("token", {"content": answer})
         elif llm is None:
             answer = deterministic_answer(question, citations)
             yield sse_event("token", {"content": answer})
         else:
-            messages = build_qa_messages(question=question, history=history[:-1], citations=citations)
+            messages = (
+                build_qa_messages(question=question, history=history[:-1], citations=citations)
+                if citations
+                else build_general_chat_messages(question=question, history=history[:-1])
+            )
             async for token in llm.stream(
                 messages,
                 temperature=0.2,
@@ -370,6 +384,7 @@ async def stream_chat_answer(
                 answer += token
                 yield sse_event("token", {"content": token})
 
+        citations = citations_used_in_answer(answer, citations)
         assistant_message = ChatMessage(
             session_id=chat_session.id,
             role="assistant",

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     wiki_ingest_debounce_seconds: int = 30
     retrieval_top_k: int = 8
     rrf_k: int = 60
+    dense_min_score: float = 0.55
+    sparse_min_score: float = 0.08
+    retrieval_min_results: int = 1
     chat_history_turns: int = 10
 
     @field_validator("cors_origins", mode="before")

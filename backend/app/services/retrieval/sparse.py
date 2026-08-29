@@ -19,21 +19,27 @@ async def sparse_search(
     kb_ids: list[str],
     query: str,
     top_k: int = 8,
+    min_score: float | None = None,
 ) -> list[RetrievalResult]:
     if session.bind and session.bind.dialect.name == "postgresql":
+        score_filter = (
+            "AND bigm_similarity(search_text, :query) > 0"
+            if min_score is None
+            else "AND bigm_similarity(search_text, :query) >= :min_score"
+        )
         result = await session.execute(
             text(
-                """
+                f"""
                 SELECT id, kb_id, content, header_path, document_id, chunk_type, source_page_id,
                        bigm_similarity(search_text, :query) AS score
                 FROM chunks
                 WHERE kb_id = ANY(:kb_ids)
-                  AND bigm_similarity(search_text, :query) > 0
+                  {score_filter}
                 ORDER BY score DESC
                 LIMIT :top_k
                 """
             ),
-            {"query": query, "kb_ids": kb_ids, "top_k": top_k},
+            {"query": query, "kb_ids": kb_ids, "top_k": top_k, "min_score": min_score},
         )
         return [
             RetrievalResult(
@@ -63,4 +69,5 @@ async def sparse_search(
         )
         for chunk in result.scalars()
     ]
-    return [item for item in sorted(scored, key=lambda item: item.score, reverse=True) if item.score > 0][:top_k]
+    filtered = [item for item in scored if item.score > 0] if min_score is None else [item for item in scored if item.score >= min_score]
+    return sorted(filtered, key=lambda item: item.score, reverse=True)[:top_k]

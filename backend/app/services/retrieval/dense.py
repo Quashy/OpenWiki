@@ -40,16 +40,19 @@ async def dense_search(
     kb_ids: list[str],
     query_embedding: list[float],
     top_k: int = 8,
+    min_score: float | None = None,
 ) -> list[RetrievalResult]:
     if session.bind and session.bind.dialect.name == "postgresql":
+        min_score_filter = "" if min_score is None else "AND 1 - (embedding <=> (:query_embedding)::vector) >= :min_score"
         result = await session.execute(
             text(
-                """
+                f"""
                 SELECT id, kb_id, content, header_path, document_id, chunk_type, source_page_id,
                        1 - (embedding <=> (:query_embedding)::vector) AS score
                 FROM chunks
                 WHERE kb_id = ANY(:kb_ids)
                   AND embedding IS NOT NULL
+                  {min_score_filter}
                 ORDER BY embedding <=> (:query_embedding)::vector
                 LIMIT :top_k
                 """
@@ -58,6 +61,7 @@ async def dense_search(
                 "query_embedding": vector_literal(query_embedding),
                 "kb_ids": kb_ids,
                 "top_k": top_k,
+                "min_score": min_score,
             },
         )
         return [
@@ -88,4 +92,5 @@ async def dense_search(
         )
         for chunk in result.scalars()
     ]
-    return sorted(scored, key=lambda item: item.score, reverse=True)[:top_k]
+    filtered = scored if min_score is None else [item for item in scored if item.score >= min_score]
+    return sorted(filtered, key=lambda item: item.score, reverse=True)[:top_k]

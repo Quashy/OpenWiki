@@ -6,9 +6,43 @@ from fastapi.testclient import TestClient
 from app.api.admin import get_ollama_client
 from app.models import AuditLog, Chunk, Entity, KnowledgeBase, Relation, WikiPage
 from app.models.m1 import new_uuid, now_utc
+from app.schemas import Citation
+from app.services.llm.base import LLMProvider
 from app.services.chat import service as chat_service
 from app.services.retrieval.fusion import reciprocal_rank_fusion
 from app.services.retrieval.graph import graph_search
+from app.services.retrieval.retriever import HybridSearchResult
+from app.services.retrieval.dense import RetrievalResult, dense_search
+from app.services.retrieval.sparse import sparse_search
+
+
+class UncitedLLMProvider(LLMProvider):
+    async def complete(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float | None = None,
+        timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
+    ) -> str:
+        return "这是一个不使用知识库事实的通用回答。"
+
+
+class RecordingLLMProvider(LLMProvider):
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+        self.messages: list[dict[str, str]] = []
+
+    async def complete(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float | None = None,
+        timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
+    ) -> str:
+        self.messages = messages
+        return self.answer
 
 
 def create_source_kb(client: TestClient, token: str) -> str:
@@ -157,6 +191,178 @@ def test_viewer_can_stream_chat_with_grounded_citations(client: TestClient) -> N
     assistant = items[-1]
     assert assistant["citations"][0]["chunk_id"] == chunk_id
     assert assistant["citations"][0]["source_type"] == "document"
+
+
+def test_retrieval_thresholds_filter_weak_matches(client: TestClient) -> None:
+    admin = register_user(client, "threshold-owner")
+    kb_id = create_source_kb(client, admin["tokens"]["access_token"])
+
+    async def seed_and_search() -> tuple[list[str], list[str]]:
+        async with client.app.state.session_factory() as session:
+            high_chunk = Chunk(
+                kb_id=kb_id,
+                document_id=None,
+                content="alpha beta release plan",
+                header_path=["Threshold"],
+                seq=0,
+                start_pos=0,
+                end_pos=23,
+                embedding=[0.1] * 1024,
+                search_text="alpha beta release plan",
+                chunk_type="text",
+                created_at=now_utc(),
+            )
+            low_chunk = Chunk(
+                kb_id=kb_id,
+                document_id=None,
+                content="unrelated archive",
+                header_path=["Threshold"],
+                seq=1,
+                start_pos=0,
+                end_pos=17,
+                embedding=[-0.1] * 1024,
+                search_text="alpha archive",
+                chunk_type="text",
+                created_at=now_utc(),
+            )
+            session.add_all([high_chunk, low_chunk])
+            await session.commit()
+
+            sparse = await sparse_search(
+                session,
+                kb_ids=[kb_id],
+                query="alpha beta",
+                top_k=5,
+                min_score=0.75,
+            )
+            dense = await dense_search(
+                session,
+                kb_ids=[kb_id],
+                query_embedding=[0.1] * 1024,
+                top_k=5,
+                min_score=0.35,
+            )
+            return [item.chunk_id for item in sparse], [item.chunk_id for item in dense]
+
+    sparse_ids, dense_ids = asyncio.run(seed_and_search())
+    assert len(sparse_ids) == 1
+    assert len(dense_ids) == 1
+
+
+def test_stream_drops_citations_not_used_by_answer(client: TestClient, monkeypatch) -> None:
+    admin = register_user(client, "uncited-owner")
+    headers = auth_header(admin["tokens"]["access_token"])
+    kb_id = create_source_kb(client, admin["tokens"]["access_token"])
+    _, chunk_id = seed_chat_chunks(client, kb_id, admin["user"]["id"])
+    created = client.post("/api/v1/chat/sessions", headers=headers, json={"kb_id": kb_id})
+    assert created.status_code == 201
+    session_id = created.json()["id"]
+
+    async def uncited_search(*args, **kwargs):
+        return HybridSearchResult(
+            dense=[],
+            sparse=[],
+            graph=[],
+            fused=[
+                RetrievalResult(
+                    chunk_id=chunk_id,
+                    kb_id=kb_id,
+                    content="OWV2-M5 使用单 KB 会话、SSE 流式回答和引用溯源。",
+                    header_path=["M5", "问答"],
+                    document_id=None,
+                    chunk_type="text",
+                    source_page_id=None,
+                    score=1,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(chat_service, "hybrid_search", uncited_search)
+
+    async def collect() -> str:
+        fake_client = client.app.dependency_overrides[get_ollama_client]()
+        async with client.app.state.session_factory() as session:
+            chunks: list[str] = []
+            async for item in chat_service.stream_chat_answer(
+                session,
+                settings=client.app.state.settings,
+                ollama_client=fake_client,
+                workspace_id=admin["workspace"]["id"],
+                actor_id=admin["user"]["id"],
+                session_id=session_id,
+                question="你好",
+                llm_provider=UncitedLLMProvider(),
+            ):
+                chunks.append(item)
+            return "".join(chunks)
+
+    body = asyncio.run(collect())
+    assert "这是一个不使用知识库事实的通用回答。" in body
+    assert '"citations": []' in body
+
+    messages = client.get(f"/api/v1/chat/sessions/{session_id}/messages", headers=headers)
+    assert messages.status_code == 200
+    assert messages.json()["items"][-1]["citations"] == []
+
+
+def test_stream_calls_llm_without_context_when_retrieval_has_no_evidence(client: TestClient, monkeypatch) -> None:
+    admin = register_user(client, "general-chat-owner")
+    headers = auth_header(admin["tokens"]["access_token"])
+    kb_id = create_source_kb(client, admin["tokens"]["access_token"])
+    created = client.post("/api/v1/chat/sessions", headers=headers, json={"kb_id": kb_id})
+    assert created.status_code == 201
+    session_id = created.json()["id"]
+
+    async def empty_search(*args, **kwargs):
+        return HybridSearchResult(dense=[], sparse=[], graph=[], fused=[])
+
+    monkeypatch.setattr(chat_service, "hybrid_search", empty_search)
+    llm = RecordingLLMProvider("你好，我是 OpenWiki V2 的知识库助手。")
+
+    async def collect() -> str:
+        fake_client = client.app.dependency_overrides[get_ollama_client]()
+        async with client.app.state.session_factory() as session:
+            chunks: list[str] = []
+            async for item in chat_service.stream_chat_answer(
+                session,
+                settings=client.app.state.settings,
+                ollama_client=fake_client,
+                workspace_id=admin["workspace"]["id"],
+                actor_id=admin["user"]["id"],
+                session_id=session_id,
+                question="你好，介绍一下自己",
+                llm_provider=llm,
+            ):
+                chunks.append(item)
+            return "".join(chunks)
+
+    body = asyncio.run(collect())
+
+    assert "你好，我是 OpenWiki V2 的知识库助手。" in body
+    assert "当前知识库没有足够证据回答这个问题。" not in body
+    assert '"citations": []' in body
+    assert llm.messages[-1]["content"] == "你好，介绍一下自己"
+    assert "上下文：" not in llm.messages[-1]["content"]
+    assert "不要编造文档、Wiki 页面或引用编号" in llm.messages[0]["content"]
+
+
+def test_answer_citation_filter_keeps_only_referenced_ids() -> None:
+    first = Citation(
+        id=1,
+        source_type="document",
+        kb_id=new_uuid(),
+        snippet="first",
+    )
+    second = Citation(
+        id=2,
+        source_type="document",
+        kb_id=first.kb_id,
+        snippet="second",
+    )
+
+    filtered = chat_service.citations_used_in_answer("只使用第二条证据。[2]", [first, second])
+
+    assert filtered == [second]
 
 
 def test_stream_error_does_not_expose_internal_exception(client: TestClient, monkeypatch) -> None:
@@ -319,8 +525,6 @@ def test_graph_search_and_rrf_wiki_boost(client: TestClient) -> None:
     graph_chunk_ids = asyncio.run(search())
     assert chunk_a_id in graph_chunk_ids
     assert chunk_b_id in graph_chunk_ids
-
-    from app.services.retrieval.dense import RetrievalResult
 
     text_result = RetrievalResult(
         chunk_id="text",
