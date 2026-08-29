@@ -263,7 +263,7 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_me
 
 报告还记录 `prompt_family`、`prompt_version`、LLM provider/model、embedding provider/model，方便后续 Dedup 或 prompt 调整后做同口径对比。
 
-## `wiki_prompt_v0.1` Micro Eval 基准
+## `wiki_prompt_v0.1` 历史 Micro Eval 基准
 
 2026-08-28 已用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest` 跑完 10 个 Micro case，run id 为 `wiki_prompt_v0_1_baseline_20260828`。
 
@@ -287,7 +287,7 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_me
 | `forbidden_content_count` | 7 |
 | `required_term_hit_rate` | 0.1364 |
 
-该结果是首个可比较 prompt 质量基线，不代表 M4 质量门禁通过。后续应先推进 Dedup pass，再用同一批 Micro case 与本基线对比。
+该结果是首个可比较 prompt 质量基线，不代表 M4 质量门禁通过。后续版本继续用同一批 Micro case 与本基线对比。
 
 ## Dedup pass Micro Eval 对比
 
@@ -313,4 +313,44 @@ $env:PYTHONPATH="backend"; python -m app.tools.eval_wiki_quality --case alias_me
 | `forbidden_content_count` | 7 | 7 | 0 |
 | `required_term_hit_rate` | 0.1364 | 0.2727 | +0.1363 |
 
-结论：Dedup pass 对重复/噪音页面有正向效果，且没有引入死链、自链或相似但不同条目的错误合并；但整体质量门禁仍未通过，主要短板仍在 canonical page 抽取稳定性、Citation 覆盖和 Reduce 关系合成。本轮不继续推进这些 prompt 强化项。
+结论：Dedup pass 对重复/噪音页面有正向效果，且没有引入死链、自链或相似但不同条目的错误合并；但整体质量门禁仍未通过，主要短板仍在 canonical page 抽取稳定性、Citation 覆盖和 Reduce 关系合成。
+
+## 当前接受基准：`wiki_prompt_v0.3`
+
+2026-08-29 已用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest` 跑完 10 个 Micro case，run id 为 `wiki_prompt_v0_3_micro_20260829T003620`。
+
+报告文件：
+
+- `reports/wiki-evals/wiki_prompt_v0_3_micro_20260829T003620/wiki-eval-wiki_prompt_v0_3_micro_20260829T003620.json`
+- `reports/wiki-evals/wiki_prompt_v0_3_micro_20260829T003620/wiki-eval-wiki_prompt_v0_3_micro_20260829T003620.md`
+- `reports/wiki-evals/wiki_prompt_v0_3_micro_20260829T003620/analysis-and-recommendations.md`
+
+本次 10 个 case 均执行完成并生成 trace_id，无 case execution error。当前接受基准质量结果如下：
+
+| 指标 | 值 |
+|---|---:|
+| `pass_rate` | 0.2 |
+| `must_have_page_hit_rate` | 0.8889 |
+| `forbidden_page_violation_count` | 0 |
+| `slug_policy_violation_count` | 2 |
+| `alias_hit_rate` | 0.8276 |
+| `citation_requirement_pass_rate` | 0.7143 |
+| `relation_hit_rate` | 0.4286 |
+| `dead_link_count` | 0 |
+| `self_loop_count` | 0 |
+| `forbidden_content_count` | 7 |
+| `required_term_hit_rate` | 0.7273 |
+
+结论：`wiki_prompt_v0.3` 是当前代码和文档接受的 M4 prompt 基准。它仍未达到完整质量门禁，但相对历史基准在页面命中、别名覆盖、引用覆盖、关系命中和关键事实保真上有明显改善。
+
+## 已撤回版本：`wiki_prompt_v0.4`
+
+2026-08-29 曾用同一批 Micro case 验证 `wiki_prompt_v0.4`，run id 为 `wiki_prompt_v0_4_micro_20260829T010054`。
+
+报告文件：
+
+- `reports/wiki-evals/wiki_prompt_v0_4_micro_20260829T010054/wiki-eval-wiki_prompt_v0_4_micro_20260829T010054.json`
+- `reports/wiki-evals/wiki_prompt_v0_4_micro_20260829T010054/wiki-eval-wiki_prompt_v0_4_micro_20260829T010054.md`
+- `reports/wiki-evals/wiki_prompt_v0_4_micro_20260829T010054/micro-eval-analysis.md`
+
+`wiki_prompt_v0.4` 的 `pass_rate=0.2` 与 v0.3 持平，但 `must_have_page_hit_rate`、`alias_hit_rate`、`citation_requirement_pass_rate`、`relation_hit_rate` 和 `required_term_hit_rate` 均较 v0.3 回退。因此该版本已撤回，当前实现与后续 M4/M5 推进均以 `wiki_prompt_v0.3` 为准。

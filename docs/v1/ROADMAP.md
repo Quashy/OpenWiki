@@ -1,10 +1,10 @@
 # OpenWiki V2 v1 开发路线图
 
-> 版本：v2.7
-> 日期：2026-08-28
+> 版本：v2.8
+> 日期：2026-08-29
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.7 — M4 明确以 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 作为首个可测 prompt 基准；先接入现有 6 个阶段并跑 Micro Eval，再单独推进 Dedup 与 Scenario Eval runner。
+> 变更：v2.8 — M4 当前接受的 Wiki Prompt 验收基准统一为 `wiki_prompt_v0.3`；`wiki_prompt_v0.4` 已因 Micro Eval 指标回退撤回，不作为当前实现或验收依据。
 
 ---
 
@@ -94,7 +94,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；`wiki_prompt_v0.1` 已接入 6 个现有阶段并记录 prompt version trace；Micro Eval 基准报告与 Dedup 对比已完成；其余为 Scenario Eval runner、质量报告 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；当前接受版本 `wiki_prompt_v0.3` 已接入 6 个现有阶段与 Dedup，并记录 prompt version trace；`wiki_prompt_v0.4` 已因指标回退撤回；其余为 Scenario Eval runner、质量报告 |
 | M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | 复用 Wiki eval questions、SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
@@ -295,7 +295,7 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - prompt 没有显式版本，Langfuse trace 无法准确关联生成质量与 prompt 变更。
 - Extract、Citation、Reduce 约束偏弱，容易出现抽取噪音、引用过宽、归并扩写或幻觉。
 - 当前没有独立 Dedup 阶段，相关但不同的实体或概念存在被错误合并的风险。
-- `docs/prompt/prompt_rules.md` 已沉淀 Wiki prompt 规则基线，`docs/prompt/prompt.md` 已定义 `wiki_prompt_v0.1` 模板契约。M4 后续以这版模板接入后的真实运行结果作为首个可测基准。
+- `docs/prompt/prompt_rules.md` 已沉淀 Wiki prompt 规则基线，`docs/prompt/prompt.md` 当前定义并实现 `wiki_prompt_v0.3` 模板契约。`wiki_prompt_v0.1` 是首个历史可测基准，`wiki_prompt_v0.4` 因 Micro Eval 指标回退已撤回，不作为当前验收基准。
 
 **交付**
 
@@ -320,7 +320,7 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
   - `self_loop_count`
   - `forbidden_content_count`
   - `required_term_hit_rate`
-- 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 中定义的 `wiki_prompt_v0.1`。
+- 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 中定义的当前接受 prompt 版本。
 - 为每个阶段建立 prompt version，并在 Langfuse span metadata 中记录 `prompt_family`、`prompt_stage`、`prompt_version`。
 - 强化六阶段 prompt：
   - Extract：明确 entity/concept 边界、aliases 规则、slug 稳定性，引入 `focused/standard/exhaustive` 抽取粒度。
@@ -339,14 +339,16 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - 覆盖能力：每个 scenario 都包含多文档综合题、关系题、冲突或变更题、参数/编号事实题和无答案题。
 - 结构化断言：每个 scenario 的 `expectations` 都包含页面、引用、关系、禁止内容、死链和自链约束。
 - 静态校验：Scenario Eval 结构校验通过，输出 `validated 3 scenarios, 18 documents, 18 questions`。本轮为文档型数据集，不跑后端 pytest。
-- Prompt 文档：新增 `docs/prompt/prompt_rules.md` 规则基线与 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 模板契约。
-- 推进决策：不再等待旧内联 prompt 单独成为唯一 baseline；下一步直接接入 `wiki_prompt_v0.1` 的 6 个现有阶段，跑 Micro Eval 作为首个可比较基准。Dedup 和 Scenario Eval runner 后置为独立改动。
-- Prompt 接入：`llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 已抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 定义的 `wiki_prompt_v0.1`。
-- Prompt 观测：每个 builder 返回 `prompt_family=wiki_ingest`、`prompt_stage`、`prompt_version=wiki_prompt_v0.1`，`ObservedLLMProvider` 已在 Langfuse LLM span metadata 中记录这些字段。
+- Prompt 文档：新增 `docs/prompt/prompt_rules.md` 规则基线与 `docs/prompt/prompt.md` 模板契约；当前接受版本为 `wiki_prompt_v0.3`。
+- 推进决策：不再等待旧内联 prompt 单独成为唯一 baseline；已先接入 prompt builder 并跑 Micro Eval 作为可比较基准。Dedup 和 Scenario Eval runner 后置为独立改动。
+- Prompt 接入：`llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 已抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 定义的当前接受版本 `wiki_prompt_v0.3`。
+- Prompt 观测：每个 builder 返回 `prompt_family=wiki_ingest`、`prompt_stage`、`prompt_version=wiki_prompt_v0.3`，`ObservedLLMProvider` 已在 Langfuse LLM span metadata 中记录这些字段。
 - Prompt 测试：新增 prompt builder 单测覆盖阶段名、版本号、输出格式关键约束、渲染后无 `{{...}}` 占位符残留，以及 LLM span metadata 记录 prompt version；后端全量测试 `PYTHONPATH=backend python -m pytest backend/tests` 通过，29 passed。
 - Micro Eval 基准：使用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest`、`wiki_prompt_v0.1` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki_prompt_v0_1_baseline_20260828/wiki-eval-wiki_prompt_v0_1_baseline_20260828.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。基准结果：`pass_rate=0.0`、`must_have_page_hit_rate=0.3333`、`alias_hit_rate=0.4138`、`citation_requirement_pass_rate=0.3571`、`relation_hit_rate=0.0`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.1364`。本结果作为后续 Dedup 与 prompt 强化对比基线，不在本轮调 prompt。
-- Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，接入 `docs/prompt/prompt.md` 的 `dedup` 模板与 `wiki_prompt_v0.1` prompt metadata；确定性规则只合并高置信同义、同编号或同既有页面条目，并拒绝 `related != same`、跨类型合并和相关但不同条目。
+- Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，当时接入 `docs/prompt/prompt.md` 的 `dedup` 模板与 `wiki_prompt_v0.1` prompt metadata；确定性规则只合并高置信同义、同编号或同既有页面条目，并拒绝 `related != same`、跨类型合并和相关但不同条目。
 - Dedup 对比：使用同一批 10 个 Micro case 重跑，报告写入 `reports/wiki-evals/wiki_prompt_v0_1_dedup_20260828/wiki-eval-wiki_prompt_v0_1_dedup_20260828.{json,md}`。对比基准：`pass_rate` 仍为 `0.0`，`must_have_page_hit_rate` 仍为 `0.3333`，`forbidden_page_violation_count` 从 `1` 降为 `0`，`alias_hit_rate` 从 `0.4138` 升至 `0.4483`，`citation_requirement_pass_rate` 仍为 `0.3571`，`relation_hit_rate` 仍为 `0.0`，`dead_link_count` 与 `self_loop_count` 仍为 `0`，`forbidden_content_count` 仍为 `7`，`required_term_hit_rate` 从 `0.1364` 升至 `0.2727`。本轮未推进 Citation、Reduce 或 Extract prompt 强化。
+- 当前接受基准：`wiki_prompt_v0.3` 已用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki_prompt_v0_3_micro_20260829T003620/wiki-eval-wiki_prompt_v0_3_micro_20260829T003620.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。结果：`pass_rate=0.2`、`must_have_page_hit_rate=0.8889`、`alias_hit_rate=0.8276`、`citation_requirement_pass_rate=0.7143`、`relation_hit_rate=0.4286`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.7273`。
+- 回滚记录：`wiki_prompt_v0.4` 已运行真实 Micro Eval，报告写入 `reports/wiki-evals/wiki_prompt_v0_4_micro_20260829T010054/`；虽然 `pass_rate=0.2` 持平，但页面命中、alias、citation、relation、required term 等核心指标均较 v0.3 回退，因此当前 prompt 已回退到 `wiki_prompt_v0.3`。
 
 **推荐实施顺序**
 
@@ -354,10 +356,10 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 2. 已完成 Micro Eval 数据：首批 10 个小而尖锐的质量样例，覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束、死链、自链和空证据不编造。
 3. 已完成 Micro Eval runner 第一版：复用现有文档处理与 Wiki ingest 能力，对页面、引用、图谱和内容做结构化断言，输出确定性指标和 trace_id。
 4. 已完成 Scenario Eval 数据：3 个中等生活场景包已落地并通过结构静态校验。
-5. Prompt 接入：将 `docs/prompt/prompt.md` 的 `wiki_prompt_v0.1` 接入 `backend/app/services/wiki/prompts.py`，先覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview 这 6 个现有运行阶段。
+5. 已完成 Prompt 接入：将 `docs/prompt/prompt.md` 的当前接受版本 `wiki_prompt_v0.3` 接入 `backend/app/services/wiki/prompts.py`，覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview 这 6 个现有运行阶段。
 6. Prompt 结构测试：覆盖阶段名、版本号、输出 schema、关键硬约束，以及渲染后不残留 `{{...}}` 占位符。
 7. Prompt 观测：Langfuse trace 支持记录 `prompt_family`、`prompt_stage`、`prompt_version`，并带上 `case_id` / `scenario_id`。
-8. 已完成 Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case，以 `wiki_prompt_v0.1` 的结果作为首个 prompt 质量基准报告。
+8. 已完成 Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case；`wiki_prompt_v0.1` 保留为首个历史基准，当前接受验收基准为 `wiki_prompt_v0.3`。
 9. 已完成 Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，使用 `related != same` 规则；已重新跑 Micro Eval，并与第 8 步基准比较。
 10. Scenario Eval runner：扩展 runner 支持 `scenarios/`，用于验证多文档、多实体、多关系下的真实复杂度。
 11. Prompt 强化：基于 Micro Eval 与 Scenario Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Source Summary、Overview。
@@ -372,11 +374,11 @@ M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 M
 - 报告中每个 case 都记录输入文档、生成任务、trace_id、失败断言、关键页面摘要和确定性指标。
 - 结构化断言覆盖 `must_have_pages`、`must_not_have_pages`、`must_have_aliases`、`must_have_citations`、`must_have_relations`、`must_not_contain`、死链数和自链数。
 - `pipeline.py` 不再包含长 prompt 文本，只负责流水线编排。
-- `backend/app/services/wiki/prompts.py` 接入 `docs/prompt/prompt.md` 定义的 `wiki_prompt_v0.1`，覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview。
+- `backend/app/services/wiki/prompts.py` 接入 `docs/prompt/prompt.md` 定义的当前接受版本 `wiki_prompt_v0.3`，覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview。
 - prompt builder 单测覆盖阶段名、版本号、输出格式、关键约束和渲染后无残留占位符。
-- 产出 `wiki_prompt_v0.1` 的 Micro Eval 基准报告，报告中每个 case 都能关联 prompt version。
+- 产出当前接受版本 `wiki_prompt_v0.3` 的 Micro Eval 基准报告，报告中每个 case 都能关联 prompt version；`wiki_prompt_v0.4` 不作为验收基准。
 - M3 固定语料测试通过，页面类型、目录树、图谱和幂等性保持稳定。
-- 新增 Dedup pass 后重新运行 Micro Eval，并与 `wiki_prompt_v0.1` 基准报告对比；相似但不同条目不得错误合并。
+- 新增 Dedup pass 后重新运行 Micro Eval，并与历史基准和当前接受基准对比；相似但不同条目不得错误合并。
 - Langfuse trace 可按 prompt version、case_id 和 scenario_id 过滤 Wiki ingest 各阶段调用。
 - 真实 DeepSeek smoke test 生成页面不含内部 chunk id、自链、死链和明显无依据扩写。
 

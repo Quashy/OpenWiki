@@ -4,6 +4,8 @@
 > 状态：在 `wiki_prompt_v0.2` Micro Eval 后，抽象强化 slug 稳定性、别名完整性、引用证据绑定、关系合成、关键事实保真和噪音过滤规则。
 > 依据：`docs/v1/ROADMAP.md` M4、当前 `backend/app/services/wiki/pipeline.py` 输入输出、`docs/prompt/prompt_rules.md`。
 
+说明：`wiki_prompt_v0.4` 已经过真实 Micro Eval 验证，但页面命中、alias、citation、relation 和 required term 等核心指标较 v0.3 回退，因此当前接受版本已回退到 `wiki_prompt_v0.3`。
+
 ## 0. 使用约定
 
 本文件采用占位符模板形式是刻意设计，不是未完成内容。ROADMAP M4 要求将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 从 `pipeline.py` 抽到 `backend/app/services/wiki/prompts.py`，并记录 `prompt_family`、`prompt_stage`、`prompt_version`。因此 prompt 文本必须以可渲染模板保存，而不是写死某一次调用的实际文档内容。
@@ -219,7 +221,7 @@ JSON 格式：
 - 中英文译名。
 - 大小写、空格、连字符等轻微写法差异。
 - 同一对象的常见别称。
-- 同一生活事项或同一编号对象的不同命名，例如事项名与事项编号。
+- 同一生活事项或同一编号对象的不同命名，例如车次名与车次编号。
 
 禁止合并：
 - 竞品或同类产品。
@@ -470,7 +472,7 @@ JSON 格式：
 - `{{candidate_json}}`
 - `{{allowed_links_json}}`
 - `{{chunks_json}}`
-- `{{existing_page_markdown}}`：当前 `pipeline.py` 尚未传入；后续增量归并时应补齐。v0.2 可传空字符串。
+- `{{existing_page_markdown}}`：当前 `pipeline.py` 传入空字符串；后续增量归并时应补齐真实已有页面内容。
 
 ### System
 
@@ -529,7 +531,8 @@ content：
 relations：
 - 从 chunks_json 中抽取与当前 candidate 直接相关的关系。
 - target_slug 必须来自 allowed_links_json，且不能等于 candidate slug。
-- relation_type 使用简短中文动词或关系短语，如 "属于"、"依赖"、"负责"、"使用"、"包含"、"替代"、"位于"、"相关"。
+- relation_type 使用原文能支持的简短中文动词或关系短语，如 "属于"、"依赖"、"负责"、"使用"、"包含"、"替代"、"位于"。
+- 不要输出泛化的 "相关" 关系；除非原文逐字表达两者相关且解释了关系含义，否则返回空数组。
 - 不要输出自环关系。
 - 没有明确关系时返回空数组。
 - 当 chunks 明确表达当前 candidate 与白名单页面之间的关系时，应输出 relation，不要只写在正文中。
@@ -628,4 +631,5 @@ JSON 格式：
 3. 已增加 prompt 结构测试：阶段名、版本号、输出 schema、关键硬约束。
 4. 已引入 Dedup pass，位于 Extract 之后、Citation 之前。
 5. 已基于 `wiki_prompt_v0.2` 重跑 Micro Eval，并将失败模式抽象为 `wiki_prompt_v0.3` 的通用规则强化。
-6. 后续基于 `wiki_prompt_v0.3` 重跑 Micro Eval，重点观察 slug 稳定性、alias 覆盖、citation 绑定、relation 命中和 forbidden content。
+6. 已基于 `wiki_prompt_v0.3` 重跑 Micro Eval，并将其作为当前接受基准。
+7. `wiki_prompt_v0.4` 已因 Micro Eval 核心指标回退撤回；后续改动应继续从 v0.3 出发，重点观察 slug 稳定性、alias 覆盖、citation 绑定、relation 命中和 forbidden content。
