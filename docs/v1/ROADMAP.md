@@ -4,7 +4,7 @@
 > 日期：2026-08-29
 > 状态：开发基线
 > 来源：[PRD](../PRD-LLM-Wiki知识库系统.md)、[TRD](../TRD-LLM-Wiki知识库系统.md)、[Architecture](../architecture.md)、[API](../api/API.md)
-> 变更：v2.8 — M4 当前接受的 Wiki Prompt 验收基准统一为 `wiki_prompt_v0.3`；`wiki_prompt_v0.4` 已因 Micro Eval 指标回退撤回，不作为当前实现或验收依据。
+> 变更：v2.8 — M4 当前接受的 Wiki Prompt 验收基准统一为 `wiki_prompt_v0.3`；`wiki_prompt_v0.4` 已因 Micro Eval 指标回退撤回，不作为当前实现或验收依据；M4 暂不完整验收，按方案 B 启动 M5，先打通单 KB RAG 问答最小纵切，再用 QA Eval 反向驱动 M4 质量修复。
 
 ---
 
@@ -94,384 +94,25 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 | M1 | 注册登录、管理成员与模型配置、创建/绑定 KB | — | 已完成 | 2026-08-27：RBAC、模型探测、KB 骨架和前端 M1 外壳测试通过 |
 | M2 | 上传文档、打标签、查看分块与处理状态 | demo 第一步 | 已完成 | 2026-08-28：上传、分块、向量化、检索基线、文档处理 trace 通过 |
 | M3 | 触发 Wiki 生成，浏览页面与知识图谱 | demo 第二步 | 已完成 | 2026-08-28：六阶段 ingest、页面浏览、图谱交互、真实 DeepSeek trace 和自动化检查通过 |
-| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；当前接受版本 `wiki_prompt_v0.3` 已接入 6 个现有阶段与 Dedup，并记录 prompt version trace；`wiki_prompt_v0.4` 已因指标回退撤回；其余为 Scenario Eval runner、质量报告 |
-| M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 未开始 | 复用 Wiki eval questions、SSE、三路检索、引用跳转、问答 trace、演示走查通过 |
+| M4 | Wiki Prompt 评估框架与生成质量固化 | demo 质量门禁 | 进行中 | Micro Eval 已有 10 个 case；Scenario Eval 已有 3 个生活场景包、18 个文档、18 个问题并通过结构静态校验；当前接受版本 `wiki_prompt_v0.3` 已接入 6 个现有阶段与 Dedup，并记录 prompt version trace；`wiki_prompt_v0.4` 已因指标回退撤回；不做完整验收，剩余为 Scenario Eval runner、质量报告和 QA 反馈驱动的质量修复 |
+| M5 | 单 KB 问答，流式回答带引用可溯源 | 🎯 demo 达成 | 进行中 | 按方案 B 启动：先完成会话/API、Dense+Sparse+RRF、SSE、引用返回和问答 trace 最小纵切；再补 GraphRAG、QA Eval、引用跳转和演示走查 |
 | M6 | 编辑 Wiki、版本回滚、审计查询、观测闭环 | demo 后工程补齐 | 未开始 | 编辑、版本、审计、Langfuse 闭环、全量回归通过 |
 | M7 | — | 演进 | 未开始 | 由试用数据或明确需求触发 |
 
 ## 4. 里程碑明细
 
-### M0：工程与契约基线（已完成）
-
-**目标**
-
-建立后续开发共享的工程骨架、数据库迁移、质量命令和接口契约校验。
-
-**PRD 功能清单**
-
-不交付 PRD 业务功能；为 PRD 5.2（安全基础设施：统一错误结构、请求 ID、配置校验）和 5.3（部署：Docker Compose 服务编排）打底，并固定质量语料（重复文档、别名、冲突事实、跨文档关系、精确编号、无答案问题）供 M2-M5 验收复用。
-
-**交付**
-
-- FastAPI、React/Vite/TypeScript、SQLAlchemy、Alembic 基础工程。
-- PostgreSQL 16、pgvector、pg_bigm、Redis、Langfuse、Ollama 连接配置。
-- `.env.example`、配置校验、结构化日志、统一错误响应、请求 ID。
-- OpenAPI 契约检查、API 契约测试入口、后端测试目录。
-- 固定质量语料：重复文档、别名、冲突事实、跨文档关系、精确编号、无答案问题。
-
-**接口**
-
-M0 不交付业务接口；只建立接口契约和后端测试入口。
-
-**退出门禁**
-
-- 空库可执行 Alembic 迁移，`vector` 和 `pg_bigm` 扩展可用。
-- 前后端、数据库和依赖服务可按文档启动。
-- OpenAPI 契约检查通过。
-- 后端最小测试通过，前端生产构建按需通过。
-
-**完成证据（2026-08-27）**
-
-- 后端：`python -m pytest` 通过。
-- 前端：`npm --prefix "frontend" run build` 通过。
-- API 契约：`npm run api:lint` 通过。
-- Docker：`docker compose config` 通过；PostgreSQL 镜像可构建并从源码安装 `pg_bigm`。
-- Alembic：空库执行 `python -m alembic upgrade head` 通过，扩展版本为 `pg_bigm 1.2`、`vector 0.8.6`。
-
-### M1：账号、团队、模型配置、KB 骨架（已完成）
-
-**目标**
-
-完成真实身份、当前团队边界、RBAC、模型配置和知识库基础管理。
-
-**PRD 功能清单**
-
-- 4.1.1 注册与登录：账号密码；首个注册用户创建当前团队并成为 Admin。
-- 4.1.2 团队管理：成员邀请/移除/角色分配、团队重命名（多团队创建/切换后置，见 2.2）。
-- 4.1.3 审计日志：写操作记录（查询界面在 M6 交付）。
-- 4.2.1 创建 Source KB：名称、描述、分块参数、Embedding 模型选定不可改（启用/停用完整语义后置）。
-- 4.2.2 知识库列表：分区展示与基础查询（文档数、状态补全在 M2）。
-- 4.5.1 创建 Wiki KB：创建 + 绑定 Source KB（`wiki_config` 生效在 M3）。
-- 4.8.1 LLM 模型配置：OpenAI/DeepSeek Key 加密入库、连通性测试。
-- 4.8.2 Embedding 配置：Ollama 服务地址、模型发现与实测维度探测（OpenAI Embedding 后置）。
-- 5.2 安全基础：bcrypt、JWT、RBAC、API Key 掩码。
-
-**接口**
-
-- Auth：`POST /auth/register`、`POST /auth/login`、`POST /auth/refresh`、`POST /auth/logout`
-- Workspace：`GET /workspaces/current`、`PATCH /workspaces/current`
-- Members：`GET /workspaces/current/members`、`POST /workspaces/current/members`、`PATCH /workspaces/current/members/{user_id}`、`DELETE /workspaces/current/members/{user_id}`
-- Model Settings：`GET /admin/llm-config`、`PUT /admin/llm-config`、`POST /admin/llm-config/test`、`GET /admin/ollama-config`、`PUT /admin/ollama-config`、`GET /admin/ollama/models`、`POST /admin/ollama/models/probe`
-- Knowledge Bases：`GET /kbs`、`POST /kbs`、`GET /kbs/{kb_id}`、`PATCH /kbs/{kb_id}`、`DELETE /kbs/{kb_id}`、`POST /kbs/{kb_id}/bindings`、`DELETE /kbs/{kb_id}/bindings/{source_kb_id}`
-
-**退出门禁**
-
-- 首个注册用户创建当前团队并成为 Admin。
-- 后续用户需由 Admin 加入团队后才能访问团队资源。
-- Admin、Editor、Viewer 权限矩阵覆盖允许和拒绝用例。
-- 禁止移除或降级最后一名 Admin。
-- LLM API Key 加密入库，接口只返回掩码。
-- Ollama 模型发现返回 tag、digest、capability、实测维度和 v1 可用性。
-- KB 创建后 Embedding 身份字段不可被普通更新接口修改。
-
-**完成证据（2026-08-27）**
-
-- 后端：`python -m pytest "backend/tests"` 通过。
-- 前端：`npm --prefix "frontend" run build` 通过。
-- Alembic：`python -m alembic upgrade head --sql` 通过，M1 表结构可生成 PostgreSQL SQL。
-- 在线迁移未在宿主机验证：当前 `DATABASE_URL` 指向 Docker 网络主机名 `db`，宿主机直接运行无法解析。
-
-### M2：Source KB 文档摄入闭环
-
-**目标**
-
-完成从文件上传到可检索 chunk 的端到端闭环，并接入第一批观测。
-
-**PRD 功能清单**
-
-- 4.2.2 知识库列表补全：文档数、状态、关键词搜索与标签筛选。
-- 4.2.3 文档标签：多标签标记、按标签筛选、标签增删改。
-- 4.3.1 支持格式：仅 `.md` 与 `.txt`。
-- 4.3.2 文件上传：SHA-256 哈希去重（KB 内）、批量上传、异步处理状态流转、失败重试、上传时选标签。
-- 4.3.3 文档列表与详情：文件名/标签/分块数/状态列表，原文预览，chunk 列表（内容、header_path、序号），元信息。
-- 4.3.4 文档删除：级联删除 chunk、向量与全文索引，记审计（来源页标记后置，见 2.2）。
-- 4.4.1 Header 路径感知切块（Markdown）：H1-H3 标题边界切节，chunk 携带 header_path。
-- 4.4.2 超长章节二次切分：段落/句子递归切分，共享 header_path，80 字符 overlap，标题边界不重叠。
-- 4.4.3 纯文本切分（TXT）：递归字符切分，header_path 为空。
-- 4.4.4 Chunk 数据结构：content、header_path、seq、start_pos/end_pos、document_id、kb_id。
-- 4.4.5 向量化上下文拼接：`" > ".join(header_path) + "\n" + content`，BM25 索引同样拼入 header_path。
-- 4.4.6 分块预览：粘贴文本预览切分结果，展示 header_path、字符数、内容。
-- 4.7 观测第一批：Langfuse `document_process` trace，含 chunking、embedding span（对应 PRD 4.7「文档解析进度」维度）。
-
-**接口**
-
-- Documents：`POST /kbs/{kb_id}/documents/upload`、`GET /kbs/{kb_id}/documents`、`GET /documents/{document_id}`、`DELETE /documents/{document_id}`、`POST /documents/{document_id}/retry`
-- Tags：`GET /kbs/{kb_id}/tags`、`POST /kbs/{kb_id}/tags`、`PATCH /kbs/{kb_id}/tags/{tag_id}`、`DELETE /kbs/{kb_id}/tags/{tag_id}`
-- Chunk Preview：`POST /kbs/{kb_id}/chunk-preview`
-- Tasks：`GET /tasks/{task_id}`
-
-**退出门禁**
-
-- 只接受 `.md` 和 `.txt`，文件大小、扩展名、文件名安全校验有效。
-- 同一 KB 内相同 SHA-256 文件返回 `409`，不同 KB 可独立上传。
-- Markdown Header-aware 分块、TXT 递归分块、overlap、`header_path`、字符位置符合固定语料预期。
-- 文档处理任务可查询进度、失败原因和重试结果。
-- Dense 与 Sparse 在固定问题 Top-K 中能召回预期证据。
-- 删除文档后，其 chunk、embedding 和全文索引不可再被召回。
-- 文档处理可在 Langfuse 中查到 `document_process` trace（含分块与向量化 span）。
-
-**完成证据（2026-08-28）**
-
-- 后端：`$env:PYTHONPATH="backend"; python -m pytest backend/tests` 通过，18 passed。
-- 前端：`npm --prefix "frontend" run build` 通过，存在 Vite chunk size warning，不阻塞 M2。
-- API 契约：`npm run api:lint` 通过。
-- Alembic：运行中数据库版本为 `0006_doc_uploader_username (head)`，包含 M2 文档摄入迁移。
-- 运行环境：frontend、backend、worker、db、redis、Langfuse 容器均正常运行。
-- 观测：最新真实 `document_process` trace 可在 Langfuse 中看到 `chunking`、`embedding`、`indexing` span；`embedding` span 记录 `chunk_count`、`model`、`embedding_dim`。
-
-**剩余风险**
-
-- 非 `.md/.txt`、超大小、不同 KB 重复上传、非失败文档重试 `409` 已由实现覆盖，后续若需要更硬的里程碑验收，可补充逐项 API 集成断言。
-
-### M3：Wiki 生成、浏览与知识图谱
-
-**目标**
-
-完成 Wiki KB 的六阶段生成、页面存储、页面浏览、图谱数据与交互视图，并接入第二批观测。
-
-**PRD 功能清单**
-
-- 4.5.1 `wiki_config` 生效：LLM 模型、超时、重试、温度（auto_ingest 自动触发后置，见 2.2）。
-- 4.5.2 Wiki 页面类型：index/source/entity/concept/overview/analysis 六类页面。
-- 4.5.3 页面内容结构：数据库元信息字段（slug、page_type、summary、category_path、aliases、source_refs）+ Markdown 正文（`SUMMARY:` 首行、`[[slug|显示名]]` 双链）。
-- 4.5.4 Wiki 生成（Ingest）：手动触发、同 KB 单任务互斥、以文档为粒度追踪状态、失败文档单独重试、全量重建（二次确认、重建中不可查询）。
-- 4.5.5 六阶段流水线：Extract、Citation、Taxonomy、Summary、Reduce、Post-process，per-slug 单事务写入，实体关系随 Reduce 写入。
-- 4.5.6 Wiki 页面浏览：左侧 category_path 目录树、Markdown 渲染、双链跳转、页面头部类型/来源数/更新时间、全文搜索（复用 chunk 检索）、来源文档跳转原文。
-- 4.5.9 知识图谱：entities/relations 关系表存储、图谱数据接口、ECharts 交互视图（缩放、拖拽、节点跳转到 Wiki 页面、实体类型/关系类型筛选、节点大小按类型区分）。
-- 5.4 可用性：ingest 按文档粒度部分成功，已成功页面保留可用。
-- 4.7 观测第二批：Langfuse `wiki_ingest` trace，六阶段各 span、每阶段 LLM 输入/输出、耗时与 token（对应 PRD 4.7「Wiki 流水线」维度）。
-
-**接口**
-
-- Wiki Tasks：`POST /wiki/{kb_id}/ingest`、`POST /wiki/{kb_id}/rebuild`
-- Wiki Pages：`GET /wiki/{kb_id}/pages`、`GET /wiki-pages/{page_id}`
-- Wiki Graph：`GET /wiki/{kb_id}/graph`
-
-**退出门禁**
-
-- 六阶段流水线完整执行，并记录阶段状态、错误和 Langfuse trace。
-- 生成 `index/source/entity/concept/overview/analysis` 六类页面。
-- 页面正文遵循 `SUMMARY:`、Markdown、`[[slug|显示名]]` 双链约定。
-- `source_refs` 和 Citation chunk ID 指向真实记录。
-- Post-process 后不存在死链和内部标记残留。
-- 重复 ingest 不产生重复页面、重复实体或重复关系。
-- 全量重建期间 Wiki KB 不可查询，完成后恢复可用。
-- 图谱视图支持缩放、拖拽、节点跳转、实体类型和关系类型筛选。
-- Wiki ingest 可在 Langfuse 中按 trace 查看六阶段各 span 的 LLM 输入输出。
-
-**推进记录（2026-08-28）**
-
-- 后端：新增 Wiki 页面、修订、实体、关系模型和迁移；实现 `POST /wiki/{kb_id}/ingest`、`POST /wiki/{kb_id}/rebuild`、`GET /wiki/{kb_id}/pages`、`GET /wiki-pages/{page_id}`、`GET /wiki/{kb_id}/graph`。
-- 流水线：接入六阶段任务状态、页面 upsert、来源页、实体/概念页、overview、analysis、index、Wiki page chunk 重新向量化、实体关系 upsert、审计日志和 Langfuse `wiki_ingest` trace；真实运行优先使用 `.env` 中 `DEEPSEEK_API_KEY`。
-- 前端：Wiki 浏览器支持目录树、搜索、类型筛选、任务进度和双链跳转；知识图谱支持 ECharts 缩放/拖拽、实体类型/关系类型筛选、节点跳转 Wiki 页面。
-- 自动化检查：`python -m pytest "backend/tests"` 通过，20 passed；`npm --prefix "frontend" run build` 通过，存在 Vite chunk size warning；`npm run api:lint` 通过；`python -m alembic upgrade head --sql` 通过。
-- 真实环境烟测：使用 DeepSeek Key、Ollama embedding、Docker Compose 后端/worker/db/redis/Langfuse，上传固定语料并触发 Wiki ingest，任务 `fd643a77-f883-4564-b69b-5a3993d799bd` 完成；返回 trace_id `a01ee1b2-781d-4b6f-8f1a-1d6a432f4be5`；生成 11 个页面，覆盖 `index/source/entity/concept/overview/analysis`；图谱 7 个节点、21 条边。
-- 页面质量自查：真实生成的 11 个页面死链数 0，内部标记残留页面数 0。
-
-### M4：Wiki Prompt 评估框架与生成质量固化
-
-**目标**
-
-先不进入问答，优先固化 M3 Wiki ingest 的生成质量。M4 的核心原则是：先建立数据集与评估框架，再改 prompt。Prompt 优化必须能被固定 case、结构化断言、真实 DeepSeek 评估报告和 Langfuse trace 证明，而不是依赖一次人工观察。
-
-**背景**
-
-M3 真实 DeepSeek 运行已经证明主链路可用，但当前 prompt 仍偏 MVP：
-
-- 当前只有固定语料和少量页面质量自查，缺少可重复运行的 Wiki 生成质量评估框架。
-- 没有结构化断言来判断“变好”还是“退步”：别名合并、相似但不同、引用命中、死链、自链、内部 chunk id、事实冲突等只能人工看。
-- `backend/app/services/wiki/prompts.py` 仍是 placeholder，真实 prompt 内联在 `pipeline.py`。
-- prompt 与流水线编排、数据库写入混在同一文件中，难以独立 review 和迭代。
-- prompt 没有显式版本，Langfuse trace 无法准确关联生成质量与 prompt 变更。
-- Extract、Citation、Reduce 约束偏弱，容易出现抽取噪音、引用过宽、归并扩写或幻觉。
-- 当前没有独立 Dedup 阶段，相关但不同的实体或概念存在被错误合并的风险。
-- `docs/prompt/prompt_rules.md` 已沉淀 Wiki prompt 规则基线，`docs/prompt/prompt.md` 当前定义并实现 `wiki_prompt_v0.3` 模板契约。`wiki_prompt_v0.1` 是首个历史可测基准，`wiki_prompt_v0.4` 因 Micro Eval 指标回退已撤回，不作为当前验收基准。
-
-**交付**
-
-- 新增 Wiki 质量评估数据集目录，建议放在 `docs/evals/wiki/`：
-  - 每个 case 包含输入文档、Wiki 配置、期望页面/别名/引用/关系/禁止内容等结构化断言。
-  - 数据集分两层：Micro Eval 和 Scenario Eval。
-  - Micro Eval：首批 8-12 个小而尖锐的 case，每个 case 1-3 个短文档、1-2 个 `questions`，覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、低价值噪音、引用约束、死链约束、图谱自链、空证据不编造。
-  - Scenario Eval：补 3-5 个中等生活场景包，每个 scenario 5-10 个文档、5-8 个 `questions`，覆盖更真实的多文档聚合、实体规模增长、关系图谱质量和后续 QA 召回稳定性。
-  - 每个 case 先写 1-2 个 `questions`，作为 M5 QA eval 的输入；M4 只校验字段可解析，不执行问答。
-- 新增本地真实 LLM eval runner：
-  - 使用 DeepSeek Key 运行固定 case，不进入 CI 默认路径。
-  - 输出 Markdown/JSON 报告，记录 case 通过率、页面数量、死链数量、引用命中、Dedup 结果、图谱异常、trace_id 列表和失败摘要。
-  - 支持只跑单个 case，方便调 prompt 时快速复现。
-- eval runner 第一版只做确定性指标，不引入 LLM-as-judge：
-  - `pass_rate`
-  - `must_have_page_hit_rate`
-  - `forbidden_page_violation_count`
-  - `alias_hit_rate`
-  - `citation_requirement_pass_rate`
-  - `relation_hit_rate`
-  - `dead_link_count`
-  - `self_loop_count`
-  - `forbidden_content_count`
-  - `required_term_hit_rate`
-- 将 `llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 中定义的当前接受 prompt 版本。
-- 为每个阶段建立 prompt version，并在 Langfuse span metadata 中记录 `prompt_family`、`prompt_stage`、`prompt_version`。
-- 强化六阶段 prompt：
-  - Extract：明确 entity/concept 边界、aliases 规则、slug 稳定性，引入 `focused/standard/exhaustive` 抽取粒度。
-  - Citation：只引用实质讨论候选项的 chunk，chunk id 必须来自输入。
-  - Taxonomy：输入已有目录，优先复用已有分类标签，分类按条目本质而非文档角色。
-  - Summary：保留 `SUMMARY:`，空内容不猜测，双链只允许来自 allowed links。
-  - Reduce：模型定位为 compiler，不扩写、不幻觉；新增事实必须由 source chunks 支持；禁止自链、坏链和内部 chunk id；冲突信息单独处理。
-  - Overview/Post-process：LLM 只负责综述或索引导言；死链清理、交叉链接注入优先走确定性代码。
-- 新增 Dedup pass：位于 Extract 之后、Citation 之前，只在高置信同义条件下合并。Dedup 属于独立 pipeline 行为变更，必须在 6 阶段 prompt 接入并跑完 Micro Eval 基准后单独推进。
-- 保留 pytest 的 fake provider 快速回归；真实 Key 只用于本地评估脚本和人工验收，避免 CI 依赖外部 LLM 稳定性和成本。
-
-**推进记录（2026-08-28）**
-
-- Scenario Eval：新增 `family_trip_001`、`community_property_001`、`home_renovation_001` 三个中等生活场景包。
-- 数据规模：3 个 scenario、18 个输入文档、18 个问题；每个 scenario 各 6 个文档、6 个问题。
-- 覆盖能力：每个 scenario 都包含多文档综合题、关系题、冲突或变更题、参数/编号事实题和无答案题。
-- 结构化断言：每个 scenario 的 `expectations` 都包含页面、引用、关系、禁止内容、死链和自链约束。
-- 静态校验：Scenario Eval 结构校验通过，输出 `validated 3 scenarios, 18 documents, 18 questions`。本轮为文档型数据集，不跑后端 pytest。
-- Prompt 文档：新增 `docs/prompt/prompt_rules.md` 规则基线与 `docs/prompt/prompt.md` 模板契约；当前接受版本为 `wiki_prompt_v0.3`。
-- 推进决策：不再等待旧内联 prompt 单独成为唯一 baseline；已先接入 prompt builder 并跑 Micro Eval 作为可比较基准。Dedup 和 Scenario Eval runner 后置为独立改动。
-- Prompt 接入：`llm_extract`、`llm_citation`、`llm_taxonomy`、`llm_source_summary`、`llm_reduce`、`llm_overview` 的 prompt builder 已抽到 `backend/app/services/wiki/prompts.py`，并接入 `docs/prompt/prompt.md` 定义的当前接受版本 `wiki_prompt_v0.3`。
-- Prompt 观测：每个 builder 返回 `prompt_family=wiki_ingest`、`prompt_stage`、`prompt_version=wiki_prompt_v0.3`，`ObservedLLMProvider` 已在 Langfuse LLM span metadata 中记录这些字段。
-- Prompt 测试：新增 prompt builder 单测覆盖阶段名、版本号、输出格式关键约束、渲染后无 `{{...}}` 占位符残留，以及 LLM span metadata 记录 prompt version；后端全量测试 `PYTHONPATH=backend python -m pytest backend/tests` 通过，29 passed。
-- Micro Eval 基准：使用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest`、`wiki_prompt_v0.1` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki_prompt_v0_1_baseline_20260828/wiki-eval-wiki_prompt_v0_1_baseline_20260828.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。基准结果：`pass_rate=0.0`、`must_have_page_hit_rate=0.3333`、`alias_hit_rate=0.4138`、`citation_requirement_pass_rate=0.3571`、`relation_hit_rate=0.0`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.1364`。本结果作为后续 Dedup 与 prompt 强化对比基线，不在本轮调 prompt。
-- Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，当时接入 `docs/prompt/prompt.md` 的 `dedup` 模板与 `wiki_prompt_v0.1` prompt metadata；确定性规则只合并高置信同义、同编号或同既有页面条目，并拒绝 `related != same`、跨类型合并和相关但不同条目。
-- Dedup 对比：使用同一批 10 个 Micro case 重跑，报告写入 `reports/wiki-evals/wiki_prompt_v0_1_dedup_20260828/wiki-eval-wiki_prompt_v0_1_dedup_20260828.{json,md}`。对比基准：`pass_rate` 仍为 `0.0`，`must_have_page_hit_rate` 仍为 `0.3333`，`forbidden_page_violation_count` 从 `1` 降为 `0`，`alias_hit_rate` 从 `0.4138` 升至 `0.4483`，`citation_requirement_pass_rate` 仍为 `0.3571`，`relation_hit_rate` 仍为 `0.0`，`dead_link_count` 与 `self_loop_count` 仍为 `0`，`forbidden_content_count` 仍为 `7`，`required_term_hit_rate` 从 `0.1364` 升至 `0.2727`。本轮未推进 Citation、Reduce 或 Extract prompt 强化。
-- 当前接受基准：`wiki_prompt_v0.3` 已用真实 DeepSeek `deepseek-chat`、Ollama `bge-m3:latest` 跑完 10 个 Micro case，报告写入 `reports/wiki-evals/wiki_prompt_v0_3_micro_20260829T003620/wiki-eval-wiki_prompt_v0_3_micro_20260829T003620.{json,md}`；10 个 case 均完成并生成 trace_id，无 execution error。结果：`pass_rate=0.2`、`must_have_page_hit_rate=0.8889`、`alias_hit_rate=0.8276`、`citation_requirement_pass_rate=0.7143`、`relation_hit_rate=0.4286`、`dead_link_count=0`、`self_loop_count=0`、`forbidden_content_count=7`、`required_term_hit_rate=0.7273`。
-- 回滚记录：`wiki_prompt_v0.4` 已运行真实 Micro Eval，报告写入 `reports/wiki-evals/wiki_prompt_v0_4_micro_20260829T010054/`；虽然 `pass_rate=0.2` 持平，但页面命中、alias、citation、relation、required term 等核心指标均较 v0.3 回退，因此当前 prompt 已回退到 `wiki_prompt_v0.3`。
-
-**推荐实施顺序**
-
-1. 已完成数据集格式：定义 case schema、输入文档目录、期望断言格式和报告格式。
-2. 已完成 Micro Eval 数据：首批 10 个小而尖锐的质量样例，覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束、死链、自链和空证据不编造。
-3. 已完成 Micro Eval runner 第一版：复用现有文档处理与 Wiki ingest 能力，对页面、引用、图谱和内容做结构化断言，输出确定性指标和 trace_id。
-4. 已完成 Scenario Eval 数据：3 个中等生活场景包已落地并通过结构静态校验。
-5. 已完成 Prompt 接入：将 `docs/prompt/prompt.md` 的当前接受版本 `wiki_prompt_v0.3` 接入 `backend/app/services/wiki/prompts.py`，覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview 这 6 个现有运行阶段。
-6. Prompt 结构测试：覆盖阶段名、版本号、输出 schema、关键硬约束，以及渲染后不残留 `{{...}}` 占位符。
-7. Prompt 观测：Langfuse trace 支持记录 `prompt_family`、`prompt_stage`、`prompt_version`，并带上 `case_id` / `scenario_id`。
-8. 已完成 Micro Eval 基准：使用真实 DeepSeek 跑 10 个 Micro case；`wiki_prompt_v0.1` 保留为首个历史基准，当前接受验收基准为 `wiki_prompt_v0.3`。
-9. 已完成 Dedup pass：在 Extract 之后、Citation 之前新增独立 Dedup 阶段，使用 `related != same` 规则；已重新跑 Micro Eval，并与第 8 步基准比较。
-10. Scenario Eval runner：扩展 runner 支持 `scenarios/`，用于验证多文档、多实体、多关系下的真实复杂度。
-11. Prompt 强化：基于 Micro Eval 与 Scenario Eval 失败项，优先强化 Citation 和 Reduce，再强化 Extract、Taxonomy、Source Summary、Overview。
-12. KB 级轻量策略：后续支持抽取粒度和用户业务 instructions，但系统事实性、引用和输出格式规则优先。
-
-**退出门禁**
-
-- `docs/evals/wiki/` 至少包含 8 个 Micro case，并覆盖同义实体、相似但不同、跨文档关系、冲突事实、编号/参数事实、噪音过滤、引用约束和空证据不编造。
-- `docs/evals/wiki/` 至少包含 3 个 Scenario pack，每个 pack 包含 5-10 个文档和 5-8 个 `questions`，用于真实复杂度验收。
-- case schema 支持 `questions`，每个 case 至少 1 个问题；M4 只验证结构，M5 QA eval 复用同一批输入文档和事实断言执行问答。
-- eval runner 可使用 DeepSeek Key 完整运行全量 case，并生成可追溯报告。
-- 报告中每个 case 都记录输入文档、生成任务、trace_id、失败断言、关键页面摘要和确定性指标。
-- 结构化断言覆盖 `must_have_pages`、`must_not_have_pages`、`must_have_aliases`、`must_have_citations`、`must_have_relations`、`must_not_contain`、死链数和自链数。
-- `pipeline.py` 不再包含长 prompt 文本，只负责流水线编排。
-- `backend/app/services/wiki/prompts.py` 接入 `docs/prompt/prompt.md` 定义的当前接受版本 `wiki_prompt_v0.3`，覆盖 Extract、Citation、Taxonomy、Source Summary、Reduce、Overview。
-- prompt builder 单测覆盖阶段名、版本号、输出格式、关键约束和渲染后无残留占位符。
-- 产出当前接受版本 `wiki_prompt_v0.3` 的 Micro Eval 基准报告，报告中每个 case 都能关联 prompt version；`wiki_prompt_v0.4` 不作为验收基准。
-- M3 固定语料测试通过，页面类型、目录树、图谱和幂等性保持稳定。
-- 新增 Dedup pass 后重新运行 Micro Eval，并与历史基准和当前接受基准对比；相似但不同条目不得错误合并。
-- Langfuse trace 可按 prompt version、case_id 和 scenario_id 过滤 Wiki ingest 各阶段调用。
-- 真实 DeepSeek smoke test 生成页面不含内部 chunk id、自链、死链和明显无依据扩写。
-
-### M5：单 KB RAG 问答（🎯 Demo 达成）
-
-**目标**
-
-完成单个物理 KB 范围内的三路检索、RRF 融合、SSE 流式回答和引用溯源。M5 退出门禁通过即 demo 可演示。
-
-**PRD 功能清单**
-
-- 4.6.1 问答入口：Web 对话界面，左侧会话列表、右侧对话区，提问前选择单个知识库（多选后置，见 2.2）。
-- 4.6.2 多路混合检索：Dense（pgvector 余弦）、Sparse（pg_bigm）、GraphRAG（实体名/别名匹配 + 1 跳扩展）三路并行，RRF 融合（k=60），Wiki 页面 chunk 加权 1.2，Top-8 截断。
-- 4.6.3 RAG 问答流程：加载历史 → 查询改写（指代消解、意图判断）→ 三路检索 → RRF 融合 → 阈值过滤 + Top-N → 组装 Prompt → SSE 流式生成；前端展示 pipeline 进度。
-- 4.6.4 引用溯源：回答角标 `[1]`、`[2]`，底部引用列表（文档名、header_path、片段），点击跳转原文/Wiki 页面，区分原始文档与 Wiki 页面来源。
-- 4.6.5 多轮对话：上下文改写为独立查询再检索，最近 10 轮（20 条消息）进入上下文，历史持久化（标题自动生成后置，见 2.2）。
-- 4.6.6 会话管理：会话列表、重命名、删除、记录所选知识库范围（推荐问题后置，见 2.2）。
-- 4.7 观测第三批：Langfuse `chat_qa` trace（query_understand、三路检索、merge、completion span），SSE done 事件返回 trace_id（对应 PRD 4.7「LLM 调用链路/检索过程」维度）。
-- QA 评估复用 M4 `docs/evals/wiki/` 的输入文档和 `questions`，不另建独立事实源；M5 只新增 QA runner 和问答断言执行。
-
-**接口**
-
-- Chat Sessions：`POST /chat/sessions`、`GET /chat/sessions`、`PATCH /chat/sessions/{session_id}`、`DELETE /chat/sessions/{session_id}`
-- Chat Messages：`GET /chat/sessions/{session_id}/messages`
-- Chat Stream：`GET /chat/sessions/{session_id}/stream`
-
-**退出门禁**
-
-- 创建会话只接受单个 `kb_id`；`kb_ids` 或多 KB 参数返回契约错误。
-- LOAD_HISTORY、QUERY_UNDERSTAND、CHUNK_SEARCH、MERGE、FILTER、PROMPT、STREAM 管线完整。
-- Dense、Sparse、GraphRAG 均参与召回，GraphRAG 无命中时不影响主流程。
-- RRF 后 Top-8 证据可复现，回答引用只指向进入上下文的片段。
-- QA eval 能读取 `questions` 并输出 `qa_pass_rate`、`answer_required_term_hit_rate`、`no_answer_pass_rate`、`citation_min_count_pass_rate`、`citation_grounding_hit_rate`、`retrieval_expected_source_hit_rate`、`wiki_boost_hit_rate`、`graph_context_hit_rate`、`forbidden_answer_content_count`。
-- SSE 至少包含 `progress`、`token`、`done`、`error` 事件，done 事件携带 trace_id。
-- Source KB 和 Wiki KB 均可独立问答，引用可跳转到原文或 Wiki 页面。
-- 问答可在 Langfuse 中按 trace_id 定位完整调用链。
-- **Demo 演示走查**：用固定语料完成端到端演示（上传 → 生成 → 浏览/图谱 → 问答带引用），走查结果有记录。
-
-### M6：工程补齐（Demo 后）
-
-**目标**
-
-补齐内部试用所需的 Wiki 治理、审计查询、观测闭环和全量验收，兑现 2.1 中 demo 阶段承诺的工程简化项。
-
-**PRD 功能清单**
-
-- 4.5.7 Wiki 页面编辑：浏览器直接编辑 Markdown，保存创建修订快照并重新向量化；人工编辑页面被系统更新时有明确对比入口提示。
-- 4.5.8 版本管理：修订历史列表、任意版本查看、任意两版本行级 diff、一键回滚（以新修订实现，不删历史）。
-- 4.1.3 审计日志查询：按操作类型和时间筛选的管理界面。
-- 4.7 观测收尾闭环：业务记录（问答消息、文档、ingest 任务）可定位到 Langfuse trace；支持按 trace 搜索、按 token/成本排序（trace 已在 M2-M5 随做接入，此处统一验收）。
-- 5.2 安全验证：密码、JWT、RBAC、API Key 加密、文件上传安全集中检查（实现已在 M1-M5 随做交付，此处只验证）。
-- 5.1 单用户性能自查：首 token 延迟、100KB 文档处理、单文档 Wiki ingest、三路检索四项。
-- 5.3 部署演练：从空数据库按文档部署，核心路径手工验收有记录。
-- 2.1 工程简化项补齐：分布式锁与 per-slug 锁、任务崩溃恢复、429 退避重试。
-
-**接口**
-
-- Wiki Edit：`PUT /wiki-pages/{page_id}`
-- Revisions：`GET /wiki-pages/{page_id}/revisions`、`GET /wiki-pages/{page_id}/revisions/{revision_id}`、`GET /wiki-pages/{page_id}/diff`、`POST /wiki-pages/{page_id}/rollback`
-- Audit：`GET /admin/audit-logs`
-
-**退出门禁**
-
-- 自动生成、人工编辑、回滚都会创建不可变修订。
-- 回滚以新修订实现，不删除历史。
-- 人工编辑后被系统更新时，前端有明确对比入口。
-- 所有写操作可在审计日志中按类型和时间查询。
-- 问答、文档处理、Wiki ingest 可从业务记录定位到 Langfuse trace。
-- 后端 pytest 全量通过；前端生产构建通过。
-- 固定语料的 Wiki 质量、检索召回、问答引用有验收记录。
-- 单用户性能自查四项完成并记录。
-- 空库部署演练通过，无数据丢失、错误引用、越权访问、不可恢复任务状态等阻断缺陷。
-
-### M7：v1 后演进
-
-M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2 后置清单与工程增强项：
-
-| 方向 | PRD/TRD 引用 | 触发条件 |
-|---|---|---|
-| 多 Workspace 与团队切换 | PRD 4.1.2 | 出现真实多团队隔离需求 |
-| 多 KB 联合问答 | PRD 4.6.1 | 单 KB 问答无法覆盖业务查询范围 |
-| OpenAI Embedding 与多维向量 | PRD 4.8.2 | Ollama 质量、成本或部署不满足要求 |
-| auto_ingest 自动触发 + debounce | PRD 4.5.1 / 4.5.4 | 手动触发成为高频操作负担 |
-| KB 启用/停用完整语义 | PRD 4.2.1 | 需要临时下线某个知识库 |
-| 会话标题自动生成 | PRD 4.6.5 | 默认标题影响会话管理体验 |
-| 新会话推荐问题 | PRD 4.6.6 | 新用户冷启动困难 |
-| 来源页"来源已删除"标记 | PRD 4.3.4 | 来源清理成为 Wiki 治理负担 |
-| 长任务并发与分布式锁增强 | TRD 5.3.2 | Wiki ingest 或文档任务出现持续排队 |
-| 系统指标观测（队列深度、错误率） | PRD 4.7 | 任务排队或错误率需要主动监控 |
-| 完整生产化部署 | PRD 5.3 | 需要交付开发机外的稳定部署环境 |
-| 20 人并发优化 | PRD 5.1 | 有明确并发目标、数据规模和压测基线 |
-
----
+里程碑详细内容已按阶段拆分到独立文档，ROADMAP 只保留总览、全局口径、接口完成定义和 PRD 功能追踪矩阵。
+
+| 里程碑 | 明细文档 |
+|---|---|
+| M0 | [M0：工程与契约基线（已完成）](./M0.md) |
+| M1 | [M1：账号、团队、模型配置、KB 骨架（已完成）](./M1.md) |
+| M2 | [M2：Source KB 文档摄入闭环](./M2.md) |
+| M3 | [M3：Wiki 生成、浏览与知识图谱](./M3.md) |
+| M4 | [M4：Wiki Prompt 评估框架与生成质量固化](./M4.md) |
+| M5 | [M5：单 KB RAG 问答（🎯 Demo 达成）](./M5.md) |
+| M6 | [M6：工程补齐（Demo 后）](./M6.md) |
+| M7 | [M7：v1 后演进](./M7.md) |
 
 ## 5. 接口完成定义
 
@@ -487,7 +128,7 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2
 
 ## 6. PRD 功能追踪矩阵
 
-里程碑列标注所属阶段：M0-M1 已完成、M2-M5 demo 主线、M6 工程补齐、M7 演进。"v1 处理"列取值 `v1` 或 `部分`（注明收敛或后置点，详见表 2.1 / 2.2）。
+里程碑列标注所属阶段和当前状态：M0-M3 已完成，M4 进行中且暂不完整验收，M5 已按方案 B 启动，M6 工程补齐，M7 演进。"v1 处理"列取值 `v1` 或 `部分`（注明收敛、质量债或后置点，详见表 2.1 / 2.2）。
 
 | PRD 章节 | 功能 | v1 处理 | 里程碑 |
 |---|---|---|---|
@@ -509,28 +150,28 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2
 | 4.4.5 | 向量化上下文拼接（header_path 拼入 embedding 与 BM25） | v1 | M2（已完成） |
 | 4.4.6 | 分块预览 | v1 | M2（已完成） |
 | 4.5.1 | 创建 Wiki KB（名称、描述、绑定） | v1 | M1（已完成） |
-| 4.5.1 | wiki_config（LLM 模型、超时、重试、温度） | 部分：auto_ingest 后置 | M3 |
-| 4.5.2 | Wiki 页面类型（六类页面） | v1 | M3 |
-| 4.5.3 | 页面内容结构（元信息字段 + SUMMARY 行 + 双链） | v1 | M3 |
-| 4.5.4 | Wiki 生成触发（手动、互斥、全量重建） | 部分：自动触发 + debounce 后置 | M3 |
-| 4.5.5 | 六阶段流水线（Extract/Citation/Taxonomy/Summary/Reduce/Post-process） | v1 | M3 |
-| 4.5.5 | Wiki Prompt 工程化（评估框架、确定性指标、模板抽取、版本、Dedup、质量回归） | v1 | M4 |
-| 4.5.6 | Wiki 页面浏览（目录树、双链、来源跳转、搜索） | v1 | M3 |
+| 4.5.1 | wiki_config（LLM 模型、超时、重试、温度） | 部分：auto_ingest 后置 | M3（已完成） |
+| 4.5.2 | Wiki 页面类型（六类页面） | v1 | M3（已完成） |
+| 4.5.3 | 页面内容结构（元信息字段 + SUMMARY 行 + 双链） | v1 | M3（已完成） |
+| 4.5.4 | Wiki 生成触发（手动、互斥、全量重建） | 部分：自动触发 + debounce 后置 | M3（已完成） |
+| 4.5.5 | 六阶段流水线（Extract/Citation/Taxonomy/Summary/Reduce/Post-process） | v1 | M3（已完成） |
+| 4.5.5 | Wiki Prompt 工程化（评估框架、确定性指标、模板抽取、版本、Dedup、质量回归） | 部分：Micro Eval、Prompt 接入、Dedup 已落地；Scenario runner 与 QA 反馈驱动质量修复保留为 M4 质量债 | M4（进行中，暂不完整验收） |
+| 4.5.6 | Wiki 页面浏览（目录树、双链、来源跳转、搜索） | v1 | M3（已完成） |
 | 4.5.7 | Wiki 页面编辑（修订快照、重新向量化、人工编辑提示） | v1 | M6 |
 | 4.5.8 | 版本管理（历史、diff、回滚） | v1 | M6 |
-| 4.5.9 | 知识图谱（entities/relations 存储、Reduce 构建） | v1 | M3 |
-| 4.5.9 | 图谱可视化（ECharts 缩放/拖拽/跳转/筛选） | v1 | M3 |
-| 4.6.1 | 问答入口（对话界面、选择知识库） | 部分：单 KB 收敛，多选后置 | M5 |
-| 4.6.2 | 多路混合检索（三路并行 + RRF + Wiki boost） | v1 | M5 |
-| 4.6.3 | RAG 问答流程（改写、检索、流式、进度） | v1 | M5 |
-| 4.6.4 | 引用溯源（角标、来源列表、跳转、类型区分） | v1 | M5 |
-| 4.6.4 | QA 评估（复用 Wiki eval questions、召回/引用/无答案指标） | v1 | M5 |
-| 4.6.5 | 多轮对话（改写、10 轮窗口、持久化） | 部分：标题自动生成后置 | M5 |
-| 4.6.6 | 会话管理（列表、重命名、删除、范围记录） | 部分：推荐问题后置 | M5 |
+| 4.5.9 | 知识图谱（entities/relations 存储、Reduce 构建） | v1 | M3（已完成） |
+| 4.5.9 | 图谱可视化（ECharts 缩放/拖拽/跳转/筛选） | v1 | M3（已完成） |
+| 4.6.1 | 问答入口（对话界面、选择知识库） | 部分：单 KB 收敛，多选后置；按方案 B 先做真实会话/API 纵切 | M5（进行中） |
+| 4.6.2 | 多路混合检索（三路并行 + RRF + Wiki boost） | v1：先 Dense+Sparse+RRF 纵切，再补 GraphRAG | M5（进行中） |
+| 4.6.3 | RAG 问答流程（改写、检索、流式、进度） | v1：先打通 SSE 最小闭环，再补完整阶段观测 | M5（进行中） |
+| 4.6.4 | 引用溯源（角标、来源列表、跳转、类型区分） | v1：先保证引用只来自 Top-8 上下文，再完善前端跳转 | M5（进行中） |
+| 4.6.4 | QA 评估（复用 Wiki eval questions、召回/引用/无答案指标） | v1：作为 M5 中后段门禁，并把 Wiki 质量失败回流 M4 | M5（进行中） |
+| 4.6.5 | 多轮对话（改写、10 轮窗口、持久化） | 部分：标题自动生成后置；历史持久化和查询改写归 M5 | M5（进行中） |
+| 4.6.6 | 会话管理（列表、重命名、删除、范围记录） | 部分：推荐问题后置；列表、重命名、删除归 M5 | M5（进行中） |
 | 4.7 | 观测：文档解析进度 trace | v1 | M2（已完成） |
-| 4.7 | 观测：Wiki 流水线六阶段 trace | v1 | M3 |
-| 4.7 | 观测：Wiki Prompt version 与阶段质量 trace | v1 | M4 |
-| 4.7 | 观测：LLM 调用链路 + 检索过程 trace、trace_id 返回 | v1 | M5 |
+| 4.7 | 观测：Wiki 流水线六阶段 trace | v1 | M3（已完成） |
+| 4.7 | 观测：Wiki Prompt version 与阶段质量 trace | 部分：Micro Eval trace 已落地；Scenario 真实报告与 QA 反馈回流保留为质量债 | M4（进行中，暂不完整验收） |
+| 4.7 | 观测：LLM 调用链路 + 检索过程 trace、trace_id 返回 | v1：随 M5 SSE 纵切接入 `chat_qa` trace | M5（进行中） |
 | 4.7 | 观测：面板访问、trace 搜索、token/成本排序闭环 | v1 | M6 |
 | 4.7 | 观测：系统指标（队列深度、错误率） | 部分：后置 | M7 |
 | 4.8.1 | LLM 模型配置（OpenAI/DeepSeek、加密、测试） | v1 | M1（已完成） |
@@ -543,9 +184,9 @@ M7 不阻塞 v1 内部试用，由真实需求或试用数据触发，涵盖 2.2
 
 ## 7. 维护规则
 
-- 开始里程碑时将状态改为 `进行中`，完成后附测试或验收证据。
+- 开始里程碑时在 ROADMAP 总览和 PRD 功能追踪矩阵中将状态改为 `进行中`；完成后在 ROADMAP 总览和对应 `Mx.md` 附测试或验收证据。
 - 日常开发按改动范围运行最快相关检查；里程碑退出时执行必要验收，不强制静态检查门禁。
 - OpenAPI、Docker、数据库迁移只在相关文件变化时触发专项检查。
-- 范围变化必须先更新本文件和 OpenAPI，再改实现。
-- PRD/TRD 与本文件冲突时，先确认是否属于 v1 收敛或 demo 简化（见 2.1 / 2.2）；确认后同步修改相关文档。
+- 范围变化必须先更新 ROADMAP、对应 `Mx.md` 和 OpenAPI，再改实现。
+- PRD/TRD 与 ROADMAP 或里程碑文件冲突时，先确认是否属于 v1 收敛或 demo 简化（见 2.1 / 2.2）；确认后同步修改相关文档。
 - 不为后续里程碑保留永久空实现；提前实现的接口也必须满足所属里程碑的完成定义。
