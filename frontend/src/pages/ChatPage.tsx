@@ -31,9 +31,10 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { listKnowledgeBases } from "../api/m1";
+import { listWikiPages, type WikiPageSummary } from "../api/m3";
 import {
   createChatSession,
   deleteChatSession,
@@ -46,6 +47,7 @@ import {
   type Citation,
 } from "../api/m5";
 import { firstKey } from "../app/navigation";
+import { MarkdownRenderer } from "../components/MarkdownRenderer";
 
 type LocalMessage = ChatMessage | {
   id: string;
@@ -437,21 +439,47 @@ function MessageBubble({
   const citationRefs = useRef(new Map<number, HTMLButtonElement>());
   const clearHighlightTimer = useRef<number | null>(null);
   const citationById = useMemo(() => new Map(visibleCitations.map((citation) => [citation.id, citation])), [visibleCitations]);
-
-  useEffect(() => {
-    return () => {
-      if (clearHighlightTimer.current) window.clearTimeout(clearHighlightTimer.current);
-    };
-  }, []);
-
-  function activateCitation(citationId: number, scroll = false) {
+  const activateCitation = useCallback((citationId: number, scroll = false) => {
     setActiveCitationId(citationId);
     if (scroll) {
       citationRefs.current.get(citationId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       if (clearHighlightTimer.current) window.clearTimeout(clearHighlightTimer.current);
       clearHighlightTimer.current = window.setTimeout(() => setActiveCitationId(null), 1600);
     }
-  }
+  }, []);
+  const answerMarkdown = useMemo(() => linkAnswerCitations(message.content, citationById), [message.content, citationById]);
+  const renderCitationLink = useCallback(
+    (citationId: number, children: ReactNode) => {
+      const citation = citationById.get(citationId);
+      if (!citation) return <span>{children}</span>;
+      const active = activeCitationId === citationId;
+      return (
+        <button
+          type="button"
+          className={`mx-0.5 inline-flex min-h-5 min-w-5 translate-y-[-0.18em] items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/35 ${
+            active
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-primary/30 bg-primary/10 text-primary hover:border-primary hover:bg-primary/15"
+          }`}
+          aria-label={`查看引用 ${citationId}：${citationTitle(citation)}`}
+          onClick={() => activateCitation(citationId, true)}
+          onMouseEnter={() => activateCitation(citationId)}
+          onMouseLeave={() => setActiveCitationId(null)}
+          onFocus={() => activateCitation(citationId)}
+          onBlur={() => setActiveCitationId(null)}
+        >
+          {children}
+        </button>
+      );
+    },
+    [activeCitationId, activateCitation, citationById],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (clearHighlightTimer.current) window.clearTimeout(clearHighlightTimer.current);
+    };
+  }, []);
 
   return (
     <article className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -462,17 +490,13 @@ function MessageBubble({
             <span>{error || status}</span>
           </div>
         ) : null}
-        <div className="whitespace-pre-wrap text-sm leading-6">
-          {isUser ? message.content || " " : (
-            <CitedAnswerText
-              content={message.content}
-              citationById={citationById}
-              activeCitationId={activeCitationId}
-              onActivate={activateCitation}
-              onClear={() => setActiveCitationId(null)}
-            />
-          )}
-        </div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap text-sm leading-6">{message.content || " "}</div>
+        ) : (
+          <div className="text-sm leading-6">
+            <MarkdownRenderer content={answerMarkdown || " "} variant="chat" renderCitationLink={renderCitationLink} />
+          </div>
+        )}
         {!isUser && visibleCitations.length > 0 ? (
           <div className="mt-3 space-y-2 border-t border-divider pt-3">
             {visibleCitations.map((citation) => (
@@ -504,66 +528,6 @@ function MessageBubble({
       ) : null}
     </article>
   );
-}
-
-function CitedAnswerText({
-  content,
-  citationById,
-  activeCitationId,
-  onActivate,
-  onClear,
-}: {
-  content: string;
-  citationById: Map<number, Citation>;
-  activeCitationId: number | null;
-  onActivate: (citationId: number, scroll?: boolean) => void;
-  onClear: () => void;
-}) {
-  if (!content) return " ";
-
-  const parts: ReactNode[] = [];
-  const citationPattern = /\[(\d+)\]/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = citationPattern.exec(content)) !== null) {
-    const citationId = Number(match[1]);
-    const citation = citationById.get(citationId);
-    if (match.index > lastIndex) {
-      parts.push(<Fragment key={`text-${lastIndex}`}>{content.slice(lastIndex, match.index)}</Fragment>);
-    }
-    if (citation) {
-      const active = activeCitationId === citationId;
-      parts.push(
-        <button
-          key={`citation-${match.index}-${citationId}`}
-          type="button"
-          className={`mx-0.5 inline-flex min-h-5 min-w-5 translate-y-[-0.18em] items-center justify-center rounded-full border px-1 text-[11px] font-semibold leading-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/35 ${
-            active
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-primary/30 bg-primary/10 text-primary hover:border-primary hover:bg-primary/15"
-          }`}
-          aria-label={`查看引用 ${citationId}：${citationTitle(citation)}`}
-          onClick={() => onActivate(citationId, true)}
-          onMouseEnter={() => onActivate(citationId)}
-          onMouseLeave={onClear}
-          onFocus={() => onActivate(citationId)}
-          onBlur={onClear}
-        >
-          {citationId}
-        </button>,
-      );
-    } else {
-      parts.push(<Fragment key={`raw-${match.index}`}>{match[0]}</Fragment>);
-    }
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < content.length) {
-    parts.push(<Fragment key={`text-${lastIndex}`}>{content.slice(lastIndex)}</Fragment>);
-  }
-
-  return parts;
 }
 
 function CitationRow({
@@ -623,6 +587,27 @@ function CitationDetailDrawer({
   onOpenWikiPage?: (pageId: string) => void;
 }) {
   const canOpenWiki = citation?.source_type === "wiki_page" && citation.wiki_page_id && onOpenWikiPage;
+  const pagesQuery = useQuery({
+    queryKey: ["citation-wiki-pages", citation?.kb_id],
+    queryFn: () => listWikiPages({ kbId: String(citation?.kb_id) }),
+    enabled: Boolean(citation?.kb_id && citation.source_type === "wiki_page" && onOpenWikiPage),
+    retry: false,
+  });
+  const wikiPages = pagesQuery.data?.items ?? [];
+  const wikiPageBySlug = useMemo(
+    () => new Map(wikiPages.map((page: WikiPageSummary) => [page.slug, page.id])),
+    [wikiPages],
+  );
+  const openWikiSlug = useCallback(
+    (slug: string) => {
+      const pageId = wikiPageBySlug.get(slug);
+      if (!pageId || !onOpenWikiPage) return;
+      onOpenWikiPage(pageId);
+      onClose();
+    },
+    [onClose, onOpenWikiPage, wikiPageBySlug],
+  );
+
   return (
     <Modal
       isOpen={Boolean(citation)}
@@ -661,9 +646,14 @@ function CitationDetailDrawer({
               ) : null}
               <section>
                 <h3 className="text-xs font-semibold text-default-500">片段</h3>
-                <p className="mt-1 whitespace-pre-wrap rounded-md border border-divider bg-default-50 px-3 py-2 text-sm leading-6 text-default-700">
-                  {citation.snippet}
-                </p>
+                <div className="mt-1 rounded-md border border-divider bg-default-50 px-3 py-2">
+                  <MarkdownRenderer
+                    content={citation.snippet}
+                    variant="citation"
+                    pages={wikiPages}
+                    onOpenSlug={openWikiSlug}
+                  />
+                </div>
               </section>
               <section className="grid gap-2 text-xs text-default-500">
                 <MetaLine label="KB" value={citation.kb_id} />
@@ -715,6 +705,15 @@ function MetaLine({ label, value }: { label: string; value?: string | null }) {
 
 function citationTitle(citation: Citation) {
   return citation.title || citation.filename || "来源片段";
+}
+
+function linkAnswerCitations(content: string, citationById: Map<number, Citation>) {
+  if (!content || citationById.size === 0) return content;
+  return content.replace(/\[(\d+)\]/g, (raw, idText: string) => {
+    const citationId = Number(idText);
+    if (!citationById.has(citationId)) return raw;
+    return `[${idText}](citation:${citationId})`;
+  });
 }
 
 function citationsReferencedByAnswer(content: string, citations: Citation[]) {
