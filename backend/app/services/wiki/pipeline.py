@@ -514,6 +514,17 @@ async def cite_candidates(
     return result
 
 
+def source_citations_for_chunks(chunks: list[Chunk]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[str]] = {}
+    for chunk in chunks:
+        if chunk.document_id:
+            grouped.setdefault(chunk.document_id, []).append(chunk.id)
+    return [
+        {"document_id": document_id, "chunk_ids": chunk_ids}
+        for document_id, chunk_ids in sorted(grouped.items())
+    ]
+
+
 async def plan_taxonomy(
     llm: LLMProvider | None,
     *,
@@ -552,6 +563,7 @@ async def write_source_pages(
             category_path=["来源"],
             aliases=[document.filename],
             source_refs=[document.id],
+            source_citations=source_citations_for_chunks(chunks_by_doc.get(document.id, [])),
             change_summary="生成来源摘要页",
         )
         await session.commit()
@@ -589,6 +601,7 @@ async def write_candidate_pages(
             category_path=taxonomy[candidate.slug],
             aliases=candidate.aliases,
             source_refs=candidate.source_refs,
+            source_citations=source_citations_for_chunks(source_chunks),
             change_summary=f"归并 {candidate.name}",
         )
         entity = await upsert_entity(
@@ -659,6 +672,7 @@ async def write_postprocess_pages(
                 category_path=page.category_path,
                 aliases=page.aliases,
                 source_refs=page.source_refs,
+                source_citations=page.source_citations,
                 change_summary="清理死链",
             )
             await session.commit()
@@ -676,6 +690,7 @@ async def write_postprocess_pages(
         category_path=["综述"],
         aliases=["全局综述"],
         source_refs=sorted({ref for candidate in candidates for ref in candidate.source_refs}),
+        source_citations=[],
         change_summary="更新全局综述",
     )
     await upsert_wiki_page(
@@ -688,6 +703,7 @@ async def write_postprocess_pages(
         category_path=["分析"],
         aliases=["跨文档分析"],
         source_refs=sorted({ref for candidate in candidates for ref in candidate.source_refs}),
+        source_citations=[],
         change_summary="更新跨文档分析",
     )
     await upsert_wiki_page(
@@ -700,6 +716,7 @@ async def write_postprocess_pages(
         category_path=["索引"],
         aliases=["首页", "目录"],
         source_refs=[],
+        source_citations=[],
         change_summary="更新索引页",
     )
     await session.commit()

@@ -9,9 +9,10 @@ from app.schemas import (
     WikiIngestRequest,
     WikiPageListResponse,
     WikiPageOut,
+    WikiPageSourceResponse,
     WikiRebuildRequest,
 )
-from app.services.wiki.page_service import get_wiki_graph, get_wiki_page, list_wiki_pages
+from app.services.wiki.page_service import get_wiki_graph, get_wiki_page, get_wiki_page_sources, list_wiki_pages
 from app.services.wiki.pipeline import create_wiki_task
 
 router = APIRouter(tags=["wiki"])
@@ -101,3 +102,12 @@ async def get_page(
     session: SessionDep,
 ) -> WikiPageOut:
     return await get_wiki_page(session, workspace_id=principal.workspace.id, page_id=page_id)
+
+
+@router.get("/wiki-pages/{page_id}/sources", response_model=WikiPageSourceResponse)
+async def get_page_sources(
+    page_id: str,
+    principal: CurrentPrincipalDep,
+    session: SessionDep,
+) -> WikiPageSourceResponse:
+    return await get_wiki_page_sources(session, workspace_id=principal.workspace.id, page_id=page_id)

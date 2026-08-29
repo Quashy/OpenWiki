@@ -2,11 +2,11 @@ import json
 import re
 from typing import Any
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.models import Chunk, Entity, KnowledgeBase, Relation, WikiPage, WikiPageRevision
+from app.models import Chunk, Document, Entity, KnowledgeBase, Relation, WikiPage, WikiPageRevision
 from app.models.m1 import new_uuid, now_utc
 from app.schemas import (
     WikiGraph,
@@ -14,6 +14,9 @@ from app.schemas import (
     WikiGraphNode,
     WikiPageListResponse,
     WikiPageOut,
+    WikiPageSource,
+    WikiPageSourceChunk,
+    WikiPageSourceResponse,
     WikiPageSummary,
     WikiPageTreeNode,
 )
@@ -87,6 +90,114 @@ def page_out(page: WikiPage) -> WikiPageOut:
         manual_edit_warning=False,
         created_at=page.created_at,
     )
+
+
+async def get_wiki_page_sources(
+    session: AsyncSession,
+    *,
+    workspace_id: str,
+    page_id: str,
+) -> WikiPageSourceResponse:
+    page = await session.scalar(
+        select(WikiPage)
+        .join(KnowledgeBase, KnowledgeBase.id == WikiPage.kb_id)
+        .where(WikiPage.id == page_id, KnowledgeBase.workspace_id == workspace_id)
+    )
+    if page is None:
+        raise ApiError("not_found", "Wiki 页面不存在", 404)
+
+    citations_by_doc = normalized_source_citations(page.source_citations or [])
+    source_ref_ids = [str(item) for item in page.source_refs or []]
+    document_ids = sorted(set(source_ref_ids) | set(citations_by_doc))
+    if not document_ids:
+        return WikiPageSourceResponse(items=[])
+
+    documents = list(
+        (
+            await session.execute(
+                select(Document)
+                .join(KnowledgeBase, KnowledgeBase.id == Document.kb_id)
+                .where(Document.id.in_(document_ids), KnowledgeBase.workspace_id == workspace_id)
+                .order_by(Document.filename)
+            )
+        ).scalars()
+    )
+    document_by_id = {document.id: document for document in documents}
+    visible_document_ids = set(document_by_id)
+    if not visible_document_ids:
+        return WikiPageSourceResponse(items=[])
+
+    precise_document_ids = {
+        document_id
+        for document_id, chunk_ids in citations_by_doc.items()
+        if document_id in visible_document_ids and chunk_ids
+    }
+    fallback_document_ids = visible_document_ids - precise_document_ids
+    precise_chunk_ids = {
+        chunk_id
+        for document_id, chunk_ids in citations_by_doc.items()
+        if document_id in visible_document_ids
+        for chunk_id in chunk_ids
+    }
+    chunk_filters = []
+    if precise_chunk_ids:
+        chunk_filters.append(Chunk.id.in_(precise_chunk_ids))
+    if fallback_document_ids:
+        chunk_filters.append(Chunk.document_id.in_(fallback_document_ids))
+    if chunk_filters:
+        chunk_query = (
+            select(Chunk)
+            .where(Chunk.document_id.in_(visible_document_ids), or_(*chunk_filters))
+            .order_by(Chunk.document_id, Chunk.seq)
+        )
+        chunks = list((await session.execute(chunk_query)).scalars())
+    else:
+        chunks = []
+
+    chunks_by_doc: dict[str, list[Chunk]] = {}
+    for chunk in chunks:
+        if chunk.document_id:
+            chunks_by_doc.setdefault(chunk.document_id, []).append(chunk)
+
+    items: list[WikiPageSource] = []
+    for document in documents:
+        precise = document.id in citations_by_doc and bool(citations_by_doc[document.id])
+        selected_chunks = chunks_by_doc.get(document.id, [])
+        items.append(
+            WikiPageSource(
+                document_id=document.id,
+                filename=document.filename,
+                status=document.status,
+                precise=precise,
+                chunks=[
+                    WikiPageSourceChunk(
+                        id=chunk.id,
+                        seq=chunk.seq,
+                        header_path=list(chunk.header_path or []),
+                        content=chunk.content,
+                        start_pos=chunk.start_pos,
+                        end_pos=chunk.end_pos,
+                    )
+                    for chunk in selected_chunks
+                ],
+            )
+        )
+    return WikiPageSourceResponse(items=items)
+
+
+def normalized_source_citations(value: list[dict[str, Any]]) -> dict[str, list[str]]:
+    citations: dict[str, list[str]] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        document_id = item.get("document_id")
+        chunk_ids = item.get("chunk_ids")
+        if not document_id or not isinstance(chunk_ids, list):
+            continue
+        clean_chunk_ids = [str(chunk_id) for chunk_id in chunk_ids if chunk_id]
+        if clean_chunk_ids:
+            citations[str(document_id)] = clean_chunk_ids
+    return citations
 
 
 def build_tree(pages: list[WikiPageSummary]) -> list[WikiPageTreeNode]:
@@ -169,6 +280,7 @@ async def upsert_wiki_page(
     category_path: list[str],
     aliases: list[str],
     source_refs: list[str],
+    source_citations: list[dict[str, Any]] | None = None,
     editor_type: str = "agent",
     editor_id: str | None = None,
     change_summary: str = "Wiki ingest 更新",
@@ -187,6 +299,7 @@ async def upsert_wiki_page(
             category_path=category_path[:2],
             aliases=aliases,
             source_refs=source_refs,
+            source_citations=source_citations or [],
             created_at=now,
             updated_at=now,
         )
@@ -200,6 +313,8 @@ async def upsert_wiki_page(
         page.category_path = category_path[:2]
         page.aliases = aliases
         page.source_refs = source_refs
+        if source_citations is not None:
+            page.source_citations = source_citations
         page.updated_at = now
 
     revision = WikiPageRevision(

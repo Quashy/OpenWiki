@@ -1004,6 +1004,25 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /wiki-pages/{page_id}/sources:
+    get:
+      tags: [Wiki]
+      summary: Wiki 页面来源定位
+      operationId: getWikiPageSources
+      description: 返回页面引用的来源文档和可定位 chunk。旧数据只有 source_refs 时返回文档级来源，precise 为 false。
+      parameters:
+        - $ref: "#/components/parameters/PageId"
+      responses:
+        "200":
+          description: 页面来源列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WikiPageSourceResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /wiki-pages/{page_id}/revisions:
     get:
       tags: [Wiki]
@@ -2173,6 +2192,52 @@ components:
               description: 最新系统版本覆盖过人工编辑时为 true。
             created_at:
               $ref: "#/components/schemas/DateTime"
+    WikiPageSourceResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiPageSource"
+    WikiPageSource:
+      type: object
+      required: [document_id, filename, status, precise, chunks]
+      properties:
+        document_id:
+          $ref: "#/components/schemas/Uuid"
+        filename:
+          type: string
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        precise:
+          type: boolean
+          description: true 表示 chunks 来自 Wiki citation 阶段；false 表示旧数据或聚合页只能定位到文档级来源。
+        chunks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiPageSourceChunk"
+    WikiPageSourceChunk:
+      type: object
+      required: [id, seq, header_path, content, start_pos, end_pos]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        seq:
+          type: integer
+          minimum: 0
+        header_path:
+          type: array
+          items:
+            type: string
+        content:
+          type: string
+        start_pos:
+          type: integer
+          minimum: 0
+        end_pos:
+          type: integer
+          minimum: 0
     WikiPageListResponse:
       type: object
       required: [items, tree]

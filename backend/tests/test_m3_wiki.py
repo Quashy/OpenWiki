@@ -6,6 +6,8 @@ from conftest import auth_header, register_user
 from fastapi.testclient import TestClient
 
 from app.api.admin import get_ollama_client
+from app.models import Chunk, Document, KnowledgeBase, User, WikiPage, Workspace, WorkspaceMember
+from app.models.m1 import new_uuid, now_utc
 from app.services.document_service import process_document_job
 from app.services.llm.base import LLMProvider
 from app.services.wiki.pipeline import process_wiki_ingest_job
@@ -115,6 +117,84 @@ def run_cancelled_wiki_worker(client: TestClient, task_id: str) -> None:
     asyncio.run(run_worker())
 
 
+def clear_page_citations(client: TestClient, page_id: str) -> None:
+    async def update_page() -> None:
+        async with client.app.state.session_factory() as session:
+            page = await session.get(WikiPage, page_id)
+            assert page is not None
+            page.source_citations = []
+            await session.commit()
+
+    asyncio.run(update_page())
+
+
+def inject_foreign_source(client: TestClient, page_id: str) -> tuple[str, str]:
+    async def create_foreign_source() -> tuple[str, str]:
+        async with client.app.state.session_factory() as session:
+            user_id = new_uuid()
+            workspace_id = new_uuid()
+            kb_id = new_uuid()
+            document_id = new_uuid()
+            chunk_id = new_uuid()
+            session.add_all(
+                [
+                    User(id=user_id, username=f"foreign-{user_id}", password_hash="x"),
+                    Workspace(id=workspace_id, name="外部 Workspace", created_by=user_id),
+                    WorkspaceMember(workspace_id=workspace_id, user_id=user_id, role="admin"),
+                    KnowledgeBase(
+                        id=kb_id,
+                        workspace_id=workspace_id,
+                        name="外部文档库",
+                        description="",
+                        type="document",
+                        status="active",
+                        embedding_provider="ollama",
+                        embedding_model_tag="bge-m3",
+                        embedding_model_digest="sha256:bge",
+                        embedding_dim=1024,
+                    ),
+                    Document(
+                        id=document_id,
+                        kb_id=kb_id,
+                        filename="foreign.md",
+                        file_hash=new_uuid().replace("-", ""),
+                        file_path="/tmp/foreign.md",
+                        file_size=10,
+                        status="completed",
+                        chunk_count=1,
+                        created_by=user_id,
+                        created_by_username="foreign",
+                        created_at=now_utc(),
+                        updated_at=now_utc(),
+                    ),
+                    Chunk(
+                        id=chunk_id,
+                        document_id=document_id,
+                        kb_id=kb_id,
+                        content="foreign workspace content",
+                        header_path=["外部"],
+                        seq=0,
+                        start_pos=0,
+                        end_pos=24,
+                        embedding=[0.1] * 1024,
+                        search_text="foreign workspace content",
+                    ),
+                ]
+            )
+
+            page = await session.get(WikiPage, page_id)
+            assert page is not None
+            page.source_refs = sorted(set([*list(page.source_refs or []), document_id]))
+            page.source_citations = [
+                *list(page.source_citations or []),
+                {"document_id": document_id, "chunk_ids": [chunk_id]},
+            ]
+            await session.commit()
+            return document_id, chunk_id
+
+    return asyncio.run(create_foreign_source())
+
+
 def test_wiki_ingest_pages_graph_and_idempotency(client: TestClient) -> None:
     admin = register_user(client, "admin")
     token = admin["tokens"]["access_token"]
@@ -146,6 +226,31 @@ def test_wiki_ingest_pages_graph_and_idempotency(client: TestClient) -> None:
     assert page.status_code == 200
     assert page.json()["current_revision_id"]
     assert not page.json()["content"].startswith("SUMMARY:")
+
+    sources = client.get(f"/api/v1/wiki-pages/{page_id}/sources", headers=headers)
+    assert sources.status_code == 200
+    source_items = sources.json()["items"]
+    assert source_items
+    assert source_items[0]["document_id"] == document_id
+    assert source_items[0]["precise"] is True
+    assert source_items[0]["chunks"]
+    assert {"id", "seq", "header_path", "content", "start_pos", "end_pos"}.issubset(source_items[0]["chunks"][0])
+
+    source_page_id = next(item["id"] for item in items if item["page_type"] == "source")
+    source_page_sources = client.get(f"/api/v1/wiki-pages/{source_page_id}/sources", headers=headers)
+    assert source_page_sources.status_code == 200
+    assert source_page_sources.json()["items"][0]["precise"] is True
+
+    clear_page_citations(client, page_id)
+    fallback_sources = client.get(f"/api/v1/wiki-pages/{page_id}/sources", headers=headers)
+    assert fallback_sources.status_code == 200
+    assert fallback_sources.json()["items"][0]["precise"] is False
+    assert fallback_sources.json()["items"][0]["chunks"]
+
+    foreign_document_id, _ = inject_foreign_source(client, page_id)
+    isolated_sources = client.get(f"/api/v1/wiki-pages/{page_id}/sources", headers=headers)
+    assert isolated_sources.status_code == 200
+    assert foreign_document_id not in {item["document_id"] for item in isolated_sources.json()["items"]}
 
     graph = client.get(f"/api/v1/wiki/{wiki_kb_id}/graph", headers=headers)
     assert graph.status_code == 200

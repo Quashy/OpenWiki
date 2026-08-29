@@ -50,6 +50,23 @@ export type WikiGraph = {
   edges: WikiGraphEdge[];
 };
 
+export type WikiPageSourceChunk = {
+  id: string;
+  seq: number;
+  header_path: string[];
+  content: string;
+  start_pos: number;
+  end_pos: number;
+};
+
+export type WikiPageSource = {
+  document_id: string;
+  filename: string;
+  status: string;
+  precise: boolean;
+  chunks: WikiPageSourceChunk[];
+};
+
 export async function ingestWiki(kbId: string, documentIds?: string[]): Promise<{ task_id: string }> {
   const response = await apiClient.post<{ task_id: string }>(`/wiki/${kbId}/ingest`, {
     document_ids: documentIds,
@@ -79,6 +96,11 @@ export async function listWikiPages(params: {
 export async function getWikiPage(pageId: string): Promise<WikiPage> {
   const response = await apiClient.get<WikiPage>(`/wiki-pages/${pageId}`);
   return response.data;
+}
+
+export async function getWikiPageSources(pageId: string): Promise<WikiPageSource[]> {
+  const response = await apiClient.get<{ items: WikiPageSource[] }>(`/wiki-pages/${pageId}/sources`);
+  return response.data.items;
 }
 
 export async function getWikiGraph(params: {

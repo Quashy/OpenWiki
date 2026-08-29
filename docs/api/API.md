@@ -140,6 +140,7 @@ Source KB 和 Wiki KB 使用同一 KB 资源模型，通过 `type=document/wiki`
 - `GET /wiki/{kb_id}/pages`
 - `GET /wiki/{kb_id}/graph`
 - `GET /wiki-pages/{page_id}`
+- `GET /wiki-pages/{page_id}/sources`
 - `PUT /wiki-pages/{page_id}`
 - `GET /wiki-pages/{page_id}/revisions`
 - `GET /wiki-pages/{page_id}/revisions/{revision_id}`

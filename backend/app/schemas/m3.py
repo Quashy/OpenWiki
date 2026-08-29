@@ -39,6 +39,27 @@ class WikiPageOut(WikiPageSummary):
     created_at: datetime
 
 
+class WikiPageSourceChunk(BaseModel):
+    id: str
+    seq: int
+    header_path: list[str]
+    content: str
+    start_pos: int
+    end_pos: int
+
+
+class WikiPageSource(BaseModel):
+    document_id: str
+    filename: str
+    status: str
+    precise: bool
+    chunks: list[WikiPageSourceChunk]
+
+
+class WikiPageSourceResponse(BaseModel):
+    items: list[WikiPageSource]
+
+
 class WikiPageTreeNode(BaseModel):
     name: str
     path: list[str]

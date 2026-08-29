@@ -22,6 +22,7 @@ class WikiPage(Base):
     category_path: Mapped[list[str]] = mapped_column(JsonType, default=list, nullable=False)
     aliases: Mapped[list[str]] = mapped_column(JsonType, default=list, nullable=False)
     source_refs: Mapped[list[str]] = mapped_column(JsonType, default=list, nullable=False)
+    source_citations: Mapped[list[dict[str, Any]]] = mapped_column(JsonType, default=list, nullable=False)
     current_revision_id: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
