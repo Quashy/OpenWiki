@@ -3,6 +3,7 @@ from app.services.wiki.pipeline import (
     WikiCandidate,
     deterministic_dedup_merges,
     merge_candidate_slugs,
+    relation_evidence_chunk_id,
 )
 
 
@@ -86,6 +87,46 @@ def test_dedup_does_not_merge_place_with_larger_place_name_sharing_slug_prefix()
     ]
 
     assert deterministic_dedup_merges(candidates, []) == {}
+
+
+def test_relation_evidence_ignores_target_name_embedded_in_longer_candidate() -> None:
+    trip = candidate(
+        name="杭州家庭旅行计划",
+        slug="entity/hangzhou-family-trip",
+        aliases=["杭州家庭旅行", "杭州家庭旅行计划"],
+    )
+    west_lake = candidate(name="西湖", slug="entity/west-lake", aliases=["西湖"])
+    hotel = candidate(name="西湖花园酒店", slug="entity/xihu-garden-hotel", aliases=["西湖花园酒店"])
+    chunks = [
+        type(
+            "Chunk",
+            (),
+            {
+                "id": "hotel",
+                "header_path": ["酒店预订"],
+                "content": "杭州家庭旅行的住宿已确认：西湖花园酒店。",
+            },
+        )(),
+        type(
+            "Chunk",
+            (),
+            {
+                "id": "itinerary",
+                "header_path": ["游玩安排"],
+                "content": "杭州家庭旅行计划第一天下午去西湖，第二天上午去浙江自然博物院。",
+            },
+        )(),
+    ]
+
+    assert (
+        relation_evidence_chunk_id(
+            candidate=trip,
+            target=west_lake,
+            chunks=chunks,
+            blocking_candidates=[west_lake, hotel],
+        )
+        == "itinerary"
+    )
 
 
 def test_dedup_rejects_cross_type_merge_and_uses_existing_page_target() -> None:

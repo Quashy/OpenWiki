@@ -570,14 +570,45 @@ def relation_evidence_chunk_id(
     candidate: WikiCandidate,
     target: WikiCandidate,
     chunks: list[Chunk],
+    blocking_candidates: list[WikiCandidate] | None = None,
 ) -> str | None:
     for chunk in chunks:
-        if candidate_mentioned_in_chunks(candidate, [chunk]) and candidate_mentioned_in_chunks(target, [chunk]):
+        if candidate_mentioned_in_chunks(candidate, [chunk]) and candidate_mentioned_in_chunks_excluding(
+            target,
+            [chunk],
+            blocking_candidates or [],
+        ):
             return chunk.id
     for chunk in chunks:
-        if candidate_mentioned_in_chunks(target, [chunk]):
+        if candidate_mentioned_in_chunks_excluding(target, [chunk], blocking_candidates or []):
             return chunk.id
     return chunks[0].id if chunks else None
+
+
+def candidate_mentioned_in_chunks_excluding(
+    candidate: WikiCandidate,
+    chunks: list[Chunk],
+    blockers: list[WikiCandidate],
+) -> bool:
+    haystack = normalize_evidence_text(
+        "\n".join(
+            [
+                *[" > ".join(str(part) for part in chunk.header_path) for chunk in chunks],
+                *[chunk.content for chunk in chunks],
+            ]
+        )
+    )
+    if not haystack:
+        return False
+    candidate_terms = candidate_evidence_terms(candidate)
+    for blocker in blockers:
+        if blocker.slug == candidate.slug:
+            continue
+        for blocker_term in candidate_evidence_terms(blocker):
+            if any(term and term != blocker_term and term in blocker_term for term in candidate_terms):
+                haystack = haystack.replace(blocker_term, " ")
+    haystack = normalize_evidence_text(haystack)
+    return any(term and term in haystack for term in candidate_terms)
 
 
 def candidate_mentioned_in_chunks(candidate: WikiCandidate, chunks: list[Chunk]) -> bool:
@@ -745,6 +776,7 @@ async def write_candidate_pages(
                 candidate=candidate,
                 target=target,
                 chunks=source_chunks,
+                blocking_candidates=allowed_link_candidates,
             )
             await upsert_relation(
                 session,
