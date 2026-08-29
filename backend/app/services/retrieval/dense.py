@@ -10,10 +10,12 @@ from app.models import Chunk
 @dataclass(frozen=True, slots=True)
 class RetrievalResult:
     chunk_id: str
+    kb_id: str
     content: str
     header_path: list[str]
     document_id: str | None
     chunk_type: str
+    source_page_id: str | None
     score: float
 
 
@@ -43,7 +45,7 @@ async def dense_search(
         result = await session.execute(
             text(
                 """
-                SELECT id, content, header_path, document_id, chunk_type,
+                SELECT id, kb_id, content, header_path, document_id, chunk_type, source_page_id,
                        1 - (embedding <=> (:query_embedding)::vector) AS score
                 FROM chunks
                 WHERE kb_id = ANY(:kb_ids)
@@ -61,10 +63,12 @@ async def dense_search(
         return [
             RetrievalResult(
                 chunk_id=row.id,
+                kb_id=row.kb_id,
                 content=row.content,
                 header_path=list(row.header_path or []),
                 document_id=row.document_id,
                 chunk_type=row.chunk_type,
+                source_page_id=row.source_page_id,
                 score=float(row.score or 0),
             )
             for row in result
@@ -74,10 +78,12 @@ async def dense_search(
     scored = [
         RetrievalResult(
             chunk_id=chunk.id,
+            kb_id=chunk.kb_id,
             content=chunk.content,
             header_path=chunk.header_path,
             document_id=chunk.document_id,
             chunk_type=chunk.chunk_type,
+            source_page_id=chunk.source_page_id,
             score=cosine_score(chunk.embedding or [], query_embedding),
         )
         for chunk in result.scalars()

@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import re
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -373,6 +374,39 @@ class ObservedLLMProvider(LLMProvider):
                 update_payload["metadata"] = {**metadata, **response_metadata}
             span.update(**update_payload)
             return response
+
+    async def stream(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float | None = None,
+        timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
+    ) -> AsyncIterator[str]:
+        stage = (prompt_metadata or {}).get("prompt_stage") or stage_from_messages(messages)
+        metadata = {
+            "stage": stage,
+            "temperature": temperature,
+            "timeout_seconds": timeout_seconds,
+        }
+        if prompt_metadata:
+            metadata.update(prompt_metadata)
+        with self.trace.span(name=f"llm_{stage}", metadata=metadata) as span:
+            parts: list[str] = []
+            async for token in self.delegate.stream(
+                messages,
+                temperature=temperature,
+                timeout_seconds=timeout_seconds,
+                prompt_metadata=prompt_metadata,
+            ):
+                parts.append(token)
+                yield token
+            output = "".join(parts)
+            response_metadata = getattr(self.delegate, "last_response_metadata", None)
+            update_payload: dict[str, Any] = {"input": messages, "output": output}
+            if isinstance(response_metadata, dict) and response_metadata:
+                update_payload["metadata"] = {**metadata, **response_metadata}
+            span.update(**update_payload)
 
 
 def stage_from_messages(messages: list[dict[str, str]]) -> str:

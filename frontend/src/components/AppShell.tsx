@@ -70,7 +70,7 @@ export function AppShell() {
           {route === "settings" && <SettingsPage />}
           {route === "wiki" && <WikiBrowserPage initialKbId={wikiKbId} initialPageId={wikiPageId} />}
           {route === "graph" && <WikiGraphPage onOpenPage={(pageId) => { setWikiPageId(pageId); setRoute("wiki"); }} />}
-          {route === "chat" && <ChatPage />}
+          {route === "chat" && <ChatPage onOpenWikiPage={(pageId) => { setWikiPageId(pageId); setRoute("wiki"); }} />}
           {route === "audit" && <MilestonePlaceholder title={sectionTitle(route)} route={route} />}
         </main>
       </div>

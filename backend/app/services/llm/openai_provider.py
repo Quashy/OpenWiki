@@ -1,5 +1,8 @@
-import httpx
+import json
+from collections.abc import AsyncIterator
 from typing import Any
+
+import httpx
 
 from app.errors import ApiError
 from app.services.llm.base import LLMProvider
@@ -91,6 +94,70 @@ class OpenAILLMProvider(LLMProvider):
                 "LLM 响应缺少 content",
                 503,
             )
+        except httpx.TimeoutException as exc:
+            raise ApiError("llm_timeout", "LLM 响应超时", 503) from exc
+        except httpx.HTTPError as exc:
+            raise ApiError("llm_network_error", "LLM 网络请求失败", 503) from exc
+
+    async def stream(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float | None = None,
+        timeout_seconds: int | None = None,
+        prompt_metadata: dict[str, str] | None = None,
+    ) -> AsyncIterator[str]:
+        self.last_response_metadata = {}
+        if not self.api_key:
+            raise ApiError("llm_not_configured", "LLM API Key 未配置", 409)
+        try:
+            async with httpx.AsyncClient(timeout=timeout_seconds or self.default_timeout_seconds) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json={
+                        "model": self.model,
+                        "messages": messages,
+                        "temperature": self.default_temperature if temperature is None else temperature,
+                        "stream": True,
+                    },
+                ) as response:
+                    if response.status_code in {401, 403}:
+                        raise ApiError("llm_auth_error", "LLM 认证失败", 503)
+                    if response.status_code == 404:
+                        raise ApiError("llm_model_not_found", "LLM 模型不存在", 503)
+                    if response.status_code >= 400:
+                        raise ApiError(
+                            "llm_invalid_response",
+                            f"LLM 服务返回 {response.status_code}",
+                            503,
+                        )
+                    content_length = 0
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data = line.removeprefix("data:").strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            payload = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = payload.get("choices")
+                        if not isinstance(choices, list) or not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta") if isinstance(choice, dict) else None
+                        token = delta.get("content") if isinstance(delta, dict) else None
+                        if isinstance(token, str) and token:
+                            content_length += len(token)
+                            yield token
+                    self.last_response_metadata = {
+                        "llm_response_model": self.model,
+                        "llm_response_content_length": content_length,
+                        "llm_response_stream": True,
+                    }
         except httpx.TimeoutException as exc:
             raise ApiError("llm_timeout", "LLM 响应超时", 503) from exc
         except httpx.HTTPError as exc:

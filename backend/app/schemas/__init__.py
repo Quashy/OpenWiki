@@ -64,11 +64,27 @@ from app.schemas.m3 import (
     WikiRebuildRequest,
     WikiRevisionPage,
 )
+from app.schemas.m5 import (
+    ChatMessageOut,
+    ChatMessagePage,
+    ChatSessionCreateRequest,
+    ChatSessionOut,
+    ChatSessionPage,
+    ChatSessionUpdateRequest,
+    Citation,
+)
 
 __all__ = [
     "AuditLogOut",
     "AuditLogPage",
     "AuthResponse",
+    "ChatMessageOut",
+    "ChatMessagePage",
+    "ChatSessionCreateRequest",
+    "ChatSessionOut",
+    "ChatSessionPage",
+    "ChatSessionUpdateRequest",
+    "Citation",
     "ChunkOut",
     "ChunkPreviewItem",
     "ChunkPreviewRequest",
