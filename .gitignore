@@ -13,6 +13,7 @@ coverage/
 *.tsbuildinfo
 logs/
 reports/
+.scratch/
 
 backend/.venv/
 frontend/node_modules/
