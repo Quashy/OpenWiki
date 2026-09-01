@@ -1,259 +1,246 @@
-# OpenWiki V2
+<div align="center">
 
-OpenWiki V2 是一个面向团队内部知识沉淀的 LLM Wiki 知识库系统。它把原始 Markdown/TXT 文档摄入为 Source KB，再通过多阶段 LLM 流水线生成结构化、可互链、可溯源的 Wiki KB，并提供 Wiki 浏览器、知识图谱和后续 RAG 问答入口。
+<h1>OpenWiki V2</h1>
 
-当前项目处于 v1 demo 主线开发中：M0-M3 已完成，M4 正在收口 Wiki Prompt 质量，下一阶段是 M5 单 KB RAG 问答。
+<p><strong>把散落的 Markdown / TXT 文档整理成可浏览、可互链、可追溯的团队 Wiki。</strong></p>
 
-## 功能状态
+<p>
+  OpenWiki V2 将原始资料与生成结果分开保存，通过多阶段 LLM 流水线生成 Wiki 页面与知识图谱，并在单个知识库范围内提供带引用的流式问答。
+</p>
 
-| 能力 | 状态 |
-|---|---|
-| 注册、登录、当前团队、成员角色与 RBAC | 已完成 |
-| LLM 配置、Ollama embedding 配置与模型探测 | 已完成 |
-| Source KB / Wiki KB 创建与绑定 | 已完成 |
-| Markdown/TXT 上传、标签、去重、分块、向量化 | 已完成 |
-| Wiki ingest / rebuild 六阶段流水线 | 已完成 |
-| Wiki 页面浏览、Markdown 渲染、双链跳转、来源定位 | 已完成 |
-| 知识图谱数据接口与 ECharts 交互视图 | 已完成 |
-| Wiki Prompt eval、Micro Eval、Dedup、prompt version trace | 进行中 |
-| 单 KB RAG 问答、SSE 流式输出、回答引用 | 未开始 |
-| Wiki 编辑、版本 diff、回滚、审计查询 | demo 后补齐 |
+<p>
+  <a href="docs/v1/ROADMAP.md"><img src="https://img.shields.io/badge/status-v1%20Demo-2563eb?style=flat-square" alt="项目状态：v1 Demo"></a>
+  <a href="docs/v1/M5.md"><img src="https://img.shields.io/badge/demo-M5%20%E5%B7%B2%E5%AE%8C%E6%88%90-16a34a?style=flat-square" alt="Demo 主线：M5 已完成"></a>
+  <a href="#快速开始"><img src="https://img.shields.io/badge/deploy-Docker%20Compose-2496ed?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="部署方式：Docker Compose"></a>
+</p>
 
-详细里程碑见 [docs/v1/ROADMAP.md](docs/v1/ROADMAP.md)。
+<p>
+  <a href="#功能预览">功能预览</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#项目状态与边界">项目状态与边界</a> ·
+  <a href="docs/v1/ROADMAP.md">开发路线</a>
+</p>
 
-## 系统架构
+</div>
 
-```text
-React + Vite frontend
-        |
-        v
-FastAPI API (/api/v1)
-        |
-        +--> PostgreSQL 16 + pgvector + pg_bigm
-        +--> Redis + ARQ worker
-        +--> Ollama embedding
-        +--> OpenAI / DeepSeek-compatible chat completion
-        +--> Langfuse tracing
-```
+[![OpenWiki Wiki 浏览器：目录、生成页面、双链与来源数量](assets/readme/wiki-browser.png)](assets/readme/wiki-browser.png)
 
-核心数据流：
+> [!NOTE]
+> 当前是开发中的 v1 Demo。文档上传、Wiki 生成、页面浏览、知识图谱和单 KB 引用问答已经跑通；Wiki 生成质量评估仍在持续收敛，尚不代表生产就绪。
 
-```text
-Upload documents
-  -> chunk and embed Source KB
-  -> extract Wiki candidates
-  -> deduplicate candidates
-  -> attach citations
-  -> plan taxonomy
-  -> summarize source documents
-  -> reduce entity/concept pages
-  -> post-process links, graph and Wiki page embeddings
-```
+## 为什么是 OpenWiki
 
-## 技术栈
+- **原文留在原文里。** Source KB 保存上传文档、分块与索引，生成内容不会覆盖事实底稿。
+- **Wiki 不只是一份报告。** Wiki KB 将跨文档内容整理为分类页面、双链和实体关系，更新后继续参与检索。
+- **回答能够回到证据。** 回答正文使用引用角标，并保留命中文档、标题路径、片段与来源类型。
 
-后端：
+## 功能预览
 
-- FastAPI
-- SQLAlchemy 2.0 async
-- Alembic
-- PostgreSQL 16
-- pgvector
-- pg_bigm
-- Redis / ARQ
-- Langfuse
-- OpenAI-compatible LLM provider
-- Ollama embedding
+### 从生成页面回到原始片段
 
-前端：
+Wiki 浏览器同时提供目录、类型筛选、Markdown 阅读、双链跳转和来源定位。展开来源后，可以查看页面关联的原始文档；存在精确引用时，还可定位到对应 Chunk。
 
-- React 18
-- Vite
-- TypeScript
-- Tailwind CSS v4
-- HeroUI
-- React Query
-- Zustand
-- ECharts
-- lucide-react
-- react-markdown / remark-gfm
+[![OpenWiki 来源定位：从 Wiki 页面查看原始文档与精确片段](assets/readme/source-traceability.png)](assets/readme/source-traceability.png)
+
+### 探索实体关系
+
+按实体或关系类型筛选 ECharts 力导向图，并从节点继续打开对应 Wiki 页面。
+
+[![OpenWiki 知识图谱：实体关系网络、筛选器与节点列表](assets/readme/knowledge-graph.png)](assets/readme/knowledge-graph.png)
+
+### 在单个知识库内提问
+
+在单个知识库范围内获得流式回答，并通过引用角标查看命中的原文或 Wiki 片段。
+
+[![OpenWiki 智能问答：带引用角标的回答与 Wiki 证据卡片](assets/readme/cited-answer.png)](assets/readme/cited-answer.png)
+
+## 从文档到 Wiki
+
+OpenWiki 把事实底稿和 LLM 生成结果放在两个物理知识库中：一个 Wiki KB 可以绑定多个 Source KB，但生成页面不会反向改写上传的原文。
+
+[![小黑用引用线把原始文档缝合为互链 Wiki，表示原始文档与生成 Wiki 之间保留来源关联](assets/openwiki-readme-illustrations/01-source-to-wiki.png)](assets/openwiki-readme-illustrations/01-source-to-wiki.png)
+
+| 知识库 | 保存内容 | 主要用途 |
+| --- | --- | --- |
+| **Source KB** | 上传的 Markdown / TXT、Chunk、向量索引与关键词索引 | 保留原始资料和直接检索证据 |
+| **Wiki KB** | 来源摘要、实体、概念、综述、分析、分类、双链与实体关系 | 承载跨文档整理结果，用于浏览、图谱和问答 |
+
+核心链路可以概括为：
+
+1. 上传文档，执行格式校验、SHA-256 去重与异步任务登记。
+2. 按 Markdown 标题路径分块，同时建立 Dense 与 Sparse 检索表示。
+3. 手动触发六阶段 Wiki ingest（Extract → Citation → Taxonomy → Summary → Reduce → Post-process）；候选项在 Extract 后先经过 Dedup。
+4. 将生成页面作为 `wiki_page` Chunk 重新向量化并写入统一索引；会话可选择一个 Source KB 或 Wiki KB 进行引用问答。
+
+## 核心能力
+
+| 能力 | 当前实现 |
+| --- | --- |
+| 文档摄入 | Markdown / TXT 上传、标签、去重、标题路径感知分块、Ollama 1024 维 Embedding 与 pg_bigm 关键词索引 |
+| Wiki 生成 | 六阶段流水线、来源摘要、实体与概念页、分类目录、双链、实体关系和生成页面再索引 |
+| 知识探索 | 目录搜索、类型筛选、Markdown 渲染、双链跳转、来源定位和交互式知识图谱 |
+| 引用问答 | 单 KB 会话、最近 10 轮上下文、查询改写、Dense + Sparse 召回、Wiki KB 补充 GraphRAG、RRF、Top-8、SSE、引用详情与 `trace_id` |
+| 团队与观测 | JWT、Admin / Editor / Viewer RBAC、模型配置、任务状态、审计写入和可选 Langfuse Trace |
 
 ## 快速开始
 
-### 1. 准备依赖
+### 1. 准备运行环境
 
-需要本机具备：
+Docker Compose 是默认启动方式，需要：
 
-- Docker Desktop
-- Node.js 22+
-- Python 3.12+
-- Ollama
+- Docker Desktop；
+- 本机运行的 [Ollama](https://ollama.com/)；
+- 一个可用的 OpenAI-compatible Chat Completions 接口及其 API Key（当前优先支持 OpenAI / DeepSeek）。
 
-v1 默认使用 Ollama 的 1024 维 embedding 模型。推荐先准备 `bge-m3`：
+Node.js 22+ 与 Python 3.12+ 只在源码开发时需要。
 
-```powershell
-ollama pull bge-m3
-```
-
-### 2. 配置环境变量
+### 2. 准备配置和 Embedding 模型
 
 ```powershell
 Copy-Item .env.example .env
+ollama pull bge-m3
 ```
 
-至少检查这些配置：
+编辑 `.env`，至少替换 `JWT_SECRET`、`ENCRYPTION_KEY`，并配置 `OPENAI_API_KEY` 或 `DEEPSEEK_API_KEY` 之一。也可以在启动后通过「模型设置」保存 LLM 配置；API Key 会加密入库，接口只返回掩码。
 
-```dotenv
-JWT_SECRET=change-me-in-production
-ENCRYPTION_KEY=base64-encoded-32-byte-key
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_EMBED_MODEL=bge-m3
-DEEPSEEK_API_KEY=
-OPENAI_API_KEY=
-```
-
-Wiki 生成需要配置一个可用的 LLM Key。系统支持 OpenAI-compatible chat completion，当前实现优先覆盖 OpenAI / DeepSeek 兼容接口。
-
-### 3. 启动服务
+### 3. 启动服务并执行迁移
 
 ```powershell
-docker compose up --build
+docker compose up --build -d
+docker compose exec backend alembic upgrade head
+docker compose ps
 ```
 
-服务地址：
+默认入口：
 
 | 服务 | 地址 |
-|---|---|
-| Web UI | http://localhost:8080 |
-| API health | http://localhost:8000/api/v1/health |
-| Swagger UI | http://localhost:8000/api/v1/docs |
-| Langfuse | http://localhost:3000 |
+| --- | --- |
+| Web UI | <http://localhost:8080> |
+| API Health | <http://localhost:8000/api/v1/health> |
+| Swagger UI | <http://localhost:8000/api/v1/docs> |
+| Langfuse | <http://localhost:3000> |
 
-第一次注册的用户会创建当前团队并成为 Admin。后续注册用户需要由 Admin 加入团队后才能访问团队资源。
+> [!WARNING]
+> 数据库迁移会创建本地验收账号 `admin`、`editor` 和 `viewer`，默认密码均为 `password123`。它们只用于本地 Demo；不要使用默认密钥或默认账号把服务暴露到公网。
 
-## 本地开发
+### 4. 打开 Demo
 
-后端：
+访问 <http://localhost:8080>，使用 `admin` 登录，然后按下面的顺序体验完整链路：
+
+1. 在「模型设置」检查 LLM 与 Ollama 连接；
+2. 创建 Source KB 并上传 `.md` 或 `.txt`；
+3. 创建 Wiki KB、绑定 Source KB，再手动执行「生成/更新」；
+4. 在 Wiki 浏览器、知识图谱和问答对话中检查结果与来源。
+
+## 项目状态与边界
+
+| 范围 | 状态 | 说明 |
+| --- | --- | --- |
+| M0–M3 | 已完成 | 工程基线、账号与 KB、文档摄入、Wiki 生成／浏览／图谱 |
+| M4 | 进行中 | Micro Eval 已接入；Scenario Eval runner、对应的真实质量报告与生成质量修复仍在推进 |
+| M5 | 已完成 | 单 KB 会话、混合检索、流式回答、引用详情、QA runner 与 Docker 集成走查 |
+| M6–M7 | 未开始 | Wiki 编辑／版本／审计查询，以及由真实需求触发的检索和多 KB 演进 |
+
+当前明确边界：
+
+- 只接收 `.md` 与 `.txt`，默认单文件不超过 10 MB；
+- 只开放一个「当前团队」，不提供多 Workspace 切换；
+- 问答会话一次只绑定一个物理 KB，不做多 KB 联合检索；
+- v1 只接受 Ollama 1024 维 Embedding 模型；
+- Wiki ingest 需要手动触发，Wiki 编辑、版本 Diff、回滚和审计查询界面尚未完成；
+- Wiki 与回答仍可能出现生成质量问题，应结合来源定位、固定语料评估和 Trace 验证。
+
+完整进度与后置范围以 [v1 开发路线图](docs/v1/ROADMAP.md) 为准；缺陷与质量跟踪见 [GitHub Issues](https://github.com/Quashy/OpenWiki/issues)。
+
+## 技术栈
+
+| 层次 | 主要组件 |
+| --- | --- |
+| Web | React 18、Vite 6、TypeScript、Tailwind CSS 4、HeroUI、TanStack Query、Zustand、ECharts |
+| API / Worker | FastAPI、SQLAlchemy 2.0 async、Alembic、Redis、ARQ |
+| 数据与检索 | PostgreSQL 16、pgvector、pg_bigm、Ollama Embedding |
+| LLM 与观测 | OpenAI / DeepSeek 兼容接口、Langfuse |
+
+<details>
+<summary><strong>查看运行架构</strong></summary>
+
+```mermaid
+flowchart TB
+    browser[React SPA] -->|HTTP / SSE| api[FastAPI API]
+    api --> db[(PostgreSQL<br/>pgvector + pg_bigm)]
+    api --> redis[(Redis)]
+    api --> ollama[Ollama Embedding]
+    api --> llm[OpenAI / DeepSeek<br/>compatible LLM]
+    redis --> worker[ARQ Worker]
+    worker --> db
+    worker --> ollama
+    worker --> llm
+    api -. trace .-> langfuse[Langfuse]
+    worker -. trace .-> langfuse
+```
+
+</details>
+
+<details>
+<summary><strong>查看本地源码开发与验证命令</strong></summary>
+
+源码开发需要 Node.js 22+、Python 3.12+，并先启动 PostgreSQL 与 Redis：
 
 ```powershell
+docker compose up -d db redis
+
+$env:DATABASE_URL="postgresql+asyncpg://openwiki:openwiki@localhost:5432/openwiki"
+$env:REDIS_URL="redis://localhost:6379/0"
+$env:OLLAMA_BASE_URL="http://localhost:11434"
+
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
+.\.venv\Scripts\alembic upgrade head
 .\.venv\Scripts\python -m uvicorn app.main:app --reload
 ```
 
-前端：
+另开一个终端，重复设置上面的 `DATABASE_URL`、`REDIS_URL` 与 `OLLAMA_BASE_URL`，再启动 Worker：
 
 ```powershell
-cd frontend
-npm install
-npm run dev
+cd backend
+.\.venv\Scripts\arq app.workers.main.WorkerSettings
 ```
 
-根目录常用命令：
+再开一个终端启动前端：
 
 ```powershell
+npm --prefix frontend ci
+npm run frontend:dev
+```
+
+交付前检查：
+
+```powershell
+npm ci
 npm run api:lint
 npm run frontend:lint
 npm run frontend:build
-```
 
-后端测试：
-
-```powershell
 cd backend
 .\.venv\Scripts\python -m pytest
 ```
 
-数据库迁移：
+</details>
 
-```powershell
-cd backend
-.\.venv\Scripts\alembic upgrade head
-```
+## 文档导航
 
-如果从宿主机连接 Docker 数据库执行迁移，使用本机端口地址：
-
-```powershell
-cd backend
-$env:DATABASE_URL="postgresql+asyncpg://openwiki:openwiki@localhost:5432/openwiki"
-.\.venv\Scripts\alembic upgrade head
-```
-
-## API
-
-API 前缀为 `/api/v1`。OpenAPI 是接口主契约：
-
-- [docs/api/openapi.yaml](docs/api/openapi.yaml)
-- [docs/api/API.md](docs/api/API.md)
-
-主要接口分组：
-
-- Auth：注册、登录、刷新 token、退出登录
-- Workspace / Members：当前团队与成员管理
-- Admin：LLM 配置、Ollama 配置、模型探测
-- Knowledge Bases：Source KB / Wiki KB 创建、绑定、配置
-- Documents / Tags：上传、列表、详情、删除、重试、标签
-- Tasks：长任务状态查询
-- Wiki：ingest、rebuild、页面列表、页面详情、来源定位、图谱
-
-Chat API 已在契约中规划，M5 阶段实现。
-
-## Wiki 质量评估
-
-Wiki Prompt 质量评估语料位于：
-
-- [docs/evals/wiki/](docs/evals/wiki/)
-- [docs/prompt/](docs/prompt/)
-
-当前 M4 重点：
-
-- 固定 `wiki_prompt_v0.3` 作为 demo baseline
-- 使用 Micro Eval 检查页面、别名、引用、关系、死链、自链和禁止内容
-- 使用 Langfuse trace 记录 prompt family、stage、version
-- 避免继续堆 prompt 文案导致过拟合
-
-评估报告默认写入 `reports/`，该目录不进入 Git。
-
-## 已知限制
-
-- v1 只支持 `.md` 和 `.txt` 上传。
-- v1 只支持单当前团队，不开放多 Workspace 创建或切换。
-- v1 问答会话只绑定单个 `kb_id`，不支持多 KB 联合问答。
-- v1 embedding 默认收敛到 Ollama 1024 维模型。
-- Wiki 自动生成仍可能出现质量问题；当前优先用 eval 和确定性后处理收敛，而不是无限强化 prompt。
-- 审计日志写入已随写接口推进，查询界面在 M6 补齐。
-
-近期质量修复跟踪见 GitHub Issues：
-
-- [#1 复现全量重建下的伪相关条目](https://github.com/Quashy/OpenWiki/issues/1)
-- [#2 Reduce 空输出不再静默生成伪页面](https://github.com/Quashy/OpenWiki/issues/2)
-- [#3 fallback 页面只展示当前页面自己的证据](https://github.com/Quashy/OpenWiki/issues/3)
-- [#4 图谱关系必须有显式证据约束](https://github.com/Quashy/OpenWiki/issues/4)
-- [#5 Reduce 输入链接收窄到证据邻域](https://github.com/Quashy/OpenWiki/issues/5)
-- [#6 清理并验证历史伪关系数据](https://github.com/Quashy/OpenWiki/issues/6)
-
-## 文档索引
-
-| 文档 | 用途 |
-|---|---|
-| [docs/v1/ROADMAP.md](docs/v1/ROADMAP.md) | v1 里程碑、范围裁剪和验收门禁 |
-| [docs/PRD-LLM-Wiki知识库系统.md](docs/PRD-LLM-Wiki知识库系统.md) | 产品需求 |
-| [docs/TRD-LLM-Wiki知识库系统.md](docs/TRD-LLM-Wiki知识库系统.md) | 技术设计 |
-| [docs/architecture.md](docs/architecture.md) | 架构说明 |
-| [docs/api/openapi.yaml](docs/api/openapi.yaml) | API 主契约 |
-| [docs/api/API.md](docs/api/API.md) | API 说明和关键负例 |
-| [docs/evals/wiki/README.md](docs/evals/wiki/README.md) | Wiki 质量评估数据说明 |
-| [docs/prompt/prompt.md](docs/prompt/prompt.md) | Wiki prompt 模板 |
-
-## 开发约定
-
-- 以 [docs/v1/ROADMAP.md](docs/v1/ROADMAP.md) 为当前阶段事实源。
-- API 变更先改 [docs/api/openapi.yaml](docs/api/openapi.yaml)，再改后端和前端。
-- 日常开发优先运行与改动相关的最快检查；里程碑收尾再跑全量检查。
-- 不把 `reports/`、`.scratch/`、`uploads/` 中的本地运行产物提交进 Git。
-- 写操作必须包含 RBAC、审计日志和清晰事务边界。
+| 文档 | 内容 |
+| --- | --- |
+| [v1 ROADMAP](docs/v1/ROADMAP.md) | 里程碑、完成证据、范围裁剪与后置项 |
+| [产品需求](docs/PRD-LLM-Wiki知识库系统.md) | 产品定位、角色、用户流程与功能范围 |
+| [技术设计](docs/TRD-LLM-Wiki知识库系统.md) | 数据模型、服务设计、任务与检索细节 |
+| [架构说明](docs/architecture.md) | 系统组件、核心链路、部署与可观测性 |
+| [OpenAPI 契约](docs/api/openapi.yaml) | `/api/v1` 主契约；同时包含后续里程碑规划接口 |
+| [API 说明](docs/api/API.md) | 当前接口口径、权限与关键负例 |
+| [Wiki 质量评估](docs/evals/wiki/README.md) | 固定 Case、Scenario、运行方式与指标说明 |
+| [Prompt 说明](docs/prompt/prompt.md) | Wiki Prompt 模板、阶段输入输出与版本约定 |
 
 ## 许可证
 
-当前仓库尚未声明开源许可证。对外公开或接受外部贡献前，需要先补充 `LICENSE`。
+当前仓库尚未声明开源许可证。在补充 `LICENSE` 前，请不要假定代码已经获得开放使用、修改或分发授权。
