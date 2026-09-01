@@ -94,7 +94,7 @@
 ## 3. 项目结构
 
 ```
-openwiki-v2/
+knowweave/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                  # FastAPI 入口

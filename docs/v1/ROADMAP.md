@@ -1,4 +1,4 @@
-# OpenWiki V2 v1 开发路线图
+# 知衍 KnowWeave v1 开发路线图
 
 > 版本：v2.10
 > 日期：2026-08-29
@@ -90,7 +90,7 @@ Langfuse 在 v1 中优先用于 LLM/RAG 业务链路追踪和质量分析，不�
 
 以 Tencent WeKnora 当前开源实现为参考，其 RAG 检索链路包含更完整的工程增强：QueryUnderstand 做改写与意图识别；知识库检索与 Web Search 可并行；多 KB / 多向量库按 embedding model 与 store 分组 fanout；Vector + Keyword 混合召回后使用 RRF；低召回时可 query expansion；融合后进入 rerank model；rerank 后做阈值过滤、阈值降级兜底、composite score、FAQ boost 与 MMR 去冗余；随后执行父子 chunk 解析、邻接 chunk 扩展、连续片段合并、重复/重叠内容去重，最后再 TopK 截断并组装引用。
 
-OpenWikiV2 后续检索演进按收益/复杂度分层处理：
+知衍 KnowWeave 后续检索演进按收益/复杂度分层处理：
 
 - M6 不扩大检索范围，优先完成工程补齐、观测闭环、固定语料验收和单用户性能自查；若 QA 失败明确指向上下文过短或重复，可做最小修复。
 - M7 优先候选：`RRF Top 20/30 -> Rerank -> MMR -> Top 8`，并增加父子/邻接 chunk 上下文扩展；引用仍指向原命中 chunk，避免溯源语义变复杂。

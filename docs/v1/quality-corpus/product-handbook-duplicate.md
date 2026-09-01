@@ -1,12 +1,12 @@
-# OpenWiki V2 产品手册
+# 知衍 KnowWeave 产品手册
 
 ## 产品别名
 
-OpenWiki V2 在内部也被称为 OWV2 或内部 Wiki 助手。所有名称都指向同一个知识库系统。
+知衍 KnowWeave 旧称 OpenWiki V2，在内部也被称为 OWV2 或内部 Wiki 助手。所有名称都指向同一个知识库系统。
 
 ## 架构关系
 
-OpenWiki V2 使用 Langfuse 记录 LLM 调用链路，并使用 Ollama bge-m3 生成 1024 维 embedding。系统默认只开放单个当前团队，不开放多团队切换。
+知衍 KnowWeave 使用 Langfuse 记录 LLM 调用链路，并使用 Ollama bge-m3 生成 1024 维 embedding。系统默认只开放单个当前团队，不开放多团队切换。
 
 ## 精确编号
 

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "OpenWiki V2"
+    app_name: str = "知衍 KnowWeave"
     api_v1_prefix: str = "/api/v1"
     environment: str = "local"
     log_level: str = "INFO"

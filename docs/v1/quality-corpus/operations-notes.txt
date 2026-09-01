@@ -1,6 +1,6 @@
-OpenWiki V2 运行笔记
+知衍 KnowWeave 运行笔记
 
-OWV2 的后端服务通过 /api/v1 暴露接口。前端健康状态徽标读取 /api/v1/health，只用于 M0 工程基线验证，不代表 M1 业务接口已经完成。
+知衍 KnowWeave 旧称 OpenWiki V2，内部缩写为 OWV2。后端服务通过 /api/v1 暴露接口。前端健康状态徽标读取 /api/v1/health，只用于 M0 工程基线验证，不代表 M1 业务接口已经完成。
 
 Langfuse 用于追踪 document_process、wiki_ingest 和 chat_qa。Redis 用于 ARQ 队列。PostgreSQL 16 同时承载业务数据、pgvector 向量检索和 pg_bigm 全文检索。
 

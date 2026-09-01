@@ -1,4 +1,4 @@
-# OpenWiki Wiki Prompt 模板
+# 知衍 KnowWeave Wiki Prompt 模板
 
 > 版本：`wiki_prompt_v0.3`
 > 状态：在 `wiki_prompt_v0.2` Micro Eval 后，抽象强化 slug 稳定性、别名完整性、引用证据绑定、关系合成、关键事实保真和噪音过滤规则。
@@ -12,7 +12,7 @@
 
 占位符风格统一为 `{{name}}`。后续在 Python 中可以用轻量 builder 函数替换，不要求引入模板引擎。模板变量必须由 builder 提供，LLM 不应看到未替换的占位符。
 
-当前 v0.3 优先适配现有 OpenWiki 后端结构：
+当前 v0.3 优先适配现有知衍 KnowWeave 后端结构：
 
 - `WikiCandidate` 字段：`name`、`slug`、`page_type`、`entity_type`、`aliases`、`description`、`source_refs`。
 - `chunk_payload` 字段：`id`、`header_path`、`content`。
@@ -369,7 +369,7 @@ JSON 格式：
 - 不要把来源文件名、临时状态、日期、负责人或动作写成分类。
 - 具体事项与其配套规则、模板、记录可以同属一个宽泛领域，但二级分类应区分对象本质。
 
-当前 OpenWiki 默认兜底会使用 "未分类"，但模型应尽量给出有意义分类。
+当前知衍 KnowWeave 默认兜底会使用 "未分类"，但模型应尽量给出有意义分类。
 
 正反例：
 - 正例：具体预订、行程、工单可归入 ["事项", "安排"] 或已有同义分类。

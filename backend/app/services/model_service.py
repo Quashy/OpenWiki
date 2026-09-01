@@ -229,7 +229,7 @@ async def probe_ollama_model(
             else []
         )
         try:
-            embedding = await client.embed(base_url, tag, "OpenWiki embedding probe")
+            embedding = await client.embed(base_url, tag, "KnowWeave embedding probe")
         except (httpx.HTTPStatusError, ValueError):
             embedding = None
         model_info = details.get("model_info", {})

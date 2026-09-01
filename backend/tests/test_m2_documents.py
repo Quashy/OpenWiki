@@ -63,7 +63,7 @@ def test_tags_upload_list_detail_and_duplicate(client: TestClient) -> None:
 
     detail = client.get(f"/api/v1/documents/{document['id']}", headers=headers)
     assert detail.status_code == 200
-    assert "OpenWiki V2" in detail.json()["content"]
+    assert "知衍 KnowWeave" in detail.json()["content"]
 
 
 def test_worker_processes_document_and_retrieval_then_delete(client: TestClient) -> None:

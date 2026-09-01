@@ -317,7 +317,7 @@ def test_stream_calls_llm_without_context_when_retrieval_has_no_evidence(client:
         return HybridSearchResult(dense=[], sparse=[], graph=[], fused=[])
 
     monkeypatch.setattr(chat_service, "hybrid_search", empty_search)
-    llm = RecordingLLMProvider("你好，我是 OpenWiki V2 的知识库助手。")
+    llm = RecordingLLMProvider("你好，我是知衍 KnowWeave 的知识库助手。")
 
     async def collect() -> str:
         fake_client = client.app.dependency_overrides[get_ollama_client]()
@@ -338,7 +338,7 @@ def test_stream_calls_llm_without_context_when_retrieval_has_no_evidence(client:
 
     body = asyncio.run(collect())
 
-    assert "你好，我是 OpenWiki V2 的知识库助手。" in body
+    assert "你好，我是知衍 KnowWeave 的知识库助手。" in body
     assert "当前知识库没有足够证据回答这个问题。" not in body
     assert '"citations": []' in body
     assert llm.messages[-1]["content"] == "你好，介绍一下自己"

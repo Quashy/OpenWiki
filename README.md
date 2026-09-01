@@ -1,11 +1,11 @@
 <div align="center">
 
-<h1>OpenWiki V2</h1>
+<h1>知衍 KnowWeave</h1>
 
 <p><strong>把散落的 Markdown / TXT 文档整理成可浏览、可互链、可追溯的团队 Wiki。</strong></p>
 
 <p>
-  OpenWiki V2 将原始资料与生成结果分开保存，通过多阶段 LLM 流水线生成 Wiki 页面与知识图谱，并在单个知识库范围内提供带引用的流式问答。
+  知衍 KnowWeave 将原始资料与生成结果分开保存，通过多阶段 LLM 流水线生成 Wiki 页面与知识图谱，并在单个知识库范围内提供带引用的流式问答。
 </p>
 
 <p>
@@ -23,12 +23,12 @@
 
 </div>
 
-[![OpenWiki Wiki 浏览器：目录、生成页面、双链与来源数量](assets/readme/wiki-browser.png)](assets/readme/wiki-browser.png)
+[![知衍 KnowWeave Wiki 浏览器：目录、生成页面、双链与来源数量](assets/readme/wiki-browser.png)](assets/readme/wiki-browser.png)
 
 > [!NOTE]
 > 当前是开发中的 v1 Demo。文档上传、Wiki 生成、页面浏览、知识图谱和单 KB 引用问答已经跑通；Wiki 生成质量评估仍在持续收敛，尚不代表生产就绪。
 
-## 为什么是 OpenWiki
+## 为什么选择知衍 KnowWeave
 
 - **原文留在原文里。** Source KB 保存上传文档、分块与索引，生成内容不会覆盖事实底稿。
 - **Wiki 不只是一份报告。** Wiki KB 将跨文档内容整理为分类页面、双链和实体关系，更新后继续参与检索。
@@ -40,25 +40,25 @@
 
 Wiki 浏览器同时提供目录、类型筛选、Markdown 阅读、双链跳转和来源定位。展开来源后，可以查看页面关联的原始文档；存在精确引用时，还可定位到对应 Chunk。
 
-[![OpenWiki 来源定位：从 Wiki 页面查看原始文档与精确片段](assets/readme/source-traceability.png)](assets/readme/source-traceability.png)
+[![知衍 KnowWeave 来源定位：从 Wiki 页面查看原始文档与精确片段](assets/readme/source-traceability.png)](assets/readme/source-traceability.png)
 
 ### 探索实体关系
 
 按实体或关系类型筛选 ECharts 力导向图，并从节点继续打开对应 Wiki 页面。
 
-[![OpenWiki 知识图谱：实体关系网络、筛选器与节点列表](assets/readme/knowledge-graph.png)](assets/readme/knowledge-graph.png)
+[![知衍 KnowWeave 知识图谱：实体关系网络、筛选器与节点列表](assets/readme/knowledge-graph.png)](assets/readme/knowledge-graph.png)
 
 ### 在单个知识库内提问
 
 在单个知识库范围内获得流式回答，并通过引用角标查看命中的原文或 Wiki 片段。
 
-[![OpenWiki 智能问答：带引用角标的回答与 Wiki 证据卡片](assets/readme/cited-answer.png)](assets/readme/cited-answer.png)
+[![知衍 KnowWeave 智能问答：带引用角标的回答与 Wiki 证据卡片](assets/readme/cited-answer.png)](assets/readme/cited-answer.png)
 
 ## 从文档到 Wiki
 
-OpenWiki 把事实底稿和 LLM 生成结果放在两个物理知识库中：一个 Wiki KB 可以绑定多个 Source KB，但生成页面不会反向改写上传的原文。
+知衍 KnowWeave 把事实底稿和 LLM 生成结果放在两个物理知识库中：一个 Wiki KB 可以绑定多个 Source KB，但生成页面不会反向改写上传的原文。
 
-[![小黑用引用线把原始文档缝合为互链 Wiki，表示原始文档与生成 Wiki 之间保留来源关联](assets/openwiki-readme-illustrations/01-source-to-wiki.png)](assets/openwiki-readme-illustrations/01-source-to-wiki.png)
+[![小黑用引用线把原始文档缝合为互链 Wiki，表示原始文档与生成 Wiki 之间保留来源关联](assets/knowweave-readme-illustrations/01-source-to-wiki.png)](assets/knowweave-readme-illustrations/01-source-to-wiki.png)
 
 | 知识库 | 保存内容 | 主要用途 |
 | --- | --- | --- |

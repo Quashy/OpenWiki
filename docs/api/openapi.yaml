@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
-  title: OpenWiki V2 v1 API
+  title: 知衍 KnowWeave v1 API
   version: 1.0.0
   summary: 企业内部 LLM Wiki 知识库系统 v1 API 契约
   license:
     name: Internal
     identifier: UNLICENSED
   description: |
-    本契约覆盖 OpenWiki V2 v1 的 M0-M6 API。
+    本契约覆盖知衍 KnowWeave v1 的 M0-M6 API。
 
     文档优先级：ROADMAP > PRD > TRD > Architecture。ROADMAP 中的 v1 冻结约束覆盖 TRD 中与 v1 范围不一致的完整形态描述。
 servers:

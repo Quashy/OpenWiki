@@ -1,7 +1,7 @@
 [project]
-name = "openwiki-backend"
+name = "knowweave-backend"
 version = "0.1.0"
-description = "OpenWiki V2 FastAPI backend"
+description = "KnowWeave FastAPI backend"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.17.0",

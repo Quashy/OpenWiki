@@ -1,4 +1,4 @@
-# OpenWiki V2 v1 API 说明
+# 知衍 KnowWeave v1 API 说明
 
 > 主契约：[`openapi.yaml`](./openapi.yaml)  
 > 版本：v1.0  
@@ -203,7 +203,7 @@ data: {"code":"llm_timeout","message":"LLM 响应超时"}
 生成或修改接口文档后必须执行：
 
 ```powershell
-npx --yes @redocly/cli lint "D:/QuashyFlies/Project/Vibe Coing/OpenWikiV2/docs/api/openapi.yaml"
+npx --yes @redocly/cli lint "docs/api/openapi.yaml"
 ```
 
 并执行以下自检：

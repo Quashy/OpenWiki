@@ -1,4 +1,4 @@
-# OpenWiki V2 智能体协作指南
+# 知衍 KnowWeave 智能体协作指南
 
 ## 语言
 

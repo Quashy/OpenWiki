@@ -321,7 +321,7 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run OpenWiki M5 QA evals against an existing KB.")
+    parser = argparse.ArgumentParser(description="Run KnowWeave M5 QA evals against an existing KB.")
     parser.add_argument("--dataset-root", type=Path, default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
     parser.add_argument("--suite", action="append", dest="suite_ids")

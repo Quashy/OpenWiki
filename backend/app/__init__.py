@@ -1,2 +1,1 @@
-"""OpenWiki V2 backend package."""
-
+"""KnowWeave backend package."""

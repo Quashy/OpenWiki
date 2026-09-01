@@ -139,7 +139,7 @@ function DesktopSidebar({ route, setRoute, isAdmin }: { route: RouteKey; setRout
         <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
           <ShieldCheck size={18} aria-hidden="true" />
         </span>
-        <span className="font-semibold">OpenWiki V2</span>
+        <span className="font-semibold">知衍 KnowWeave</span>
       </div>
       <ScrollShadow className="min-h-0 flex-1 px-3 py-4">
         <SidebarNav route={route} setRoute={setRoute} isAdmin={isAdmin} />
@@ -172,7 +172,7 @@ function MobileHeader({
           <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
             <ShieldCheck size={18} aria-hidden="true" />
           </span>
-          <span className="font-semibold">OpenWiki V2</span>
+          <span className="font-semibold">知衍 KnowWeave</span>
         </NavbarBrand>
       </NavbarContent>
       <NavbarContent justify="end">

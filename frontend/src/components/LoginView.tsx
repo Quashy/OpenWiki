@@ -45,7 +45,7 @@ export function LoginView() {
               <ShieldCheck size={24} aria-hidden="true" />
             </span>
             <div>
-              <h1 className="text-2xl font-semibold">OpenWiki V2</h1>
+              <h1 className="text-2xl font-semibold">知衍 KnowWeave</h1>
               <p className="text-sm text-default-500">企业内部知识库系统</p>
             </div>
           </div>
@@ -68,7 +68,7 @@ export function LoginView() {
               <span className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <ShieldCheck size={22} aria-hidden="true" />
               </span>
-              <h1 className="text-xl font-semibold">OpenWiki V2</h1>
+              <h1 className="text-xl font-semibold">知衍 KnowWeave</h1>
             </div>
             <div>
               <h2 className="text-xl font-semibold">{mode === "login" ? "登录" : "注册"}</h2>

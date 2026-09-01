@@ -1,4 +1,4 @@
-# OpenWiki background worker runtime configuration.
+# KnowWeave background worker runtime configuration.
 #
 # Current state:
 # - One ARQ queue is shared by document processing and Wiki ingest jobs.

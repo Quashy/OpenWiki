@@ -60,5 +60,5 @@ export function firstKey(keys: "all" | Iterable<Key>, fallback: string) {
 }
 
 export function sectionTitle(route: RouteKey) {
-  return navSections.flatMap((section) => section.items).find((item) => item.key === route)?.label ?? "OpenWiki";
+  return navSections.flatMap((section) => section.items).find((item) => item.key === route)?.label ?? "知衍 KnowWeave";
 }
